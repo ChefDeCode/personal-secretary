@@ -1,18 +1,32 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 ChefDeCode
-# 打 v* 标签时：从源码编译 → 打安装包 → 连同 SHA256SUMS 放进 GitHub Release。只做这三件事，不跑测试
+# 打 v* 标签时（或在 Actions 页面手动运行并填版本号时）：从源码编译 → 打安装包 → 连同 SHA256SUMS 放进 GitHub Release。只做这三件事，不跑测试
 # 权限只有 contents: write；只用 GitHub 自带的 GITHUB_TOKEN，不用别的 secret
 name: release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version without the leading v, e.g. 0.2.0 (creates tag v<version> on this commit)'
+        required: true
 permissions:
   contents: write
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      INPUT_VERSION: ${{ inputs.version }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2 (pinned by commit)
+
+      - name: Work out the version and tag
+        shell: powershell
+        run: |
+          $tag = if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') { 'v' + $env:INPUT_VERSION } else { $env:GITHUB_REF_NAME }
+          if ($tag -notmatch '^v\d+\.\d+\.\d+$') { throw "bad version tag: $tag" }
+          "TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       # Windows PowerShell 5.1 reads a .ps1 without BOM in the system code page, which garbles Chinese text and can break parsing
       - name: Parse-check every .ps1 with Windows PowerShell 5.1
@@ -44,7 +58,7 @@ jobs:
       - name: Build installer
         shell: powershell
         run: |
-          $ver = $env:GITHUB_REF_NAME.TrimStart('v')
+          $ver = $env:TAG.TrimStart('v')
           & $env:ISCC "/DAppVersion=$ver" installer\secretary.iss
           if ($LASTEXITCODE) { exit 1 }
           Push-Location dist
@@ -56,4 +70,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create $env:GITHUB_REF_NAME (Get-ChildItem dist -File).FullName --title "个人秘书 $env:GITHUB_REF_NAME" --notes "Windows 安装包（只装给当前用户，不需要管理员）。安装包没有代码签名，SmartScreen 会提示「未知发布者」：点「更多信息」→「仍要运行」。用 SHA256SUMS 核对下载的文件。"
+          # Chinese text lives in UTF-8 files, not in this inline script, so the code page of the runner never matters
+          $title = 'Personal Secretary ' + $env:TAG
+          gh release create $env:TAG (Get-ChildItem dist -File).FullName --target $env:GITHUB_SHA --title $title --notes-file installer\release-notes.md
+          if ($LASTEXITCODE) { exit 1 }
