@@ -61,9 +61,12 @@ jobs:
           $ver = $env:TAG.TrimStart('v')
           & $env:ISCC "/DAppVersion=$ver" installer\secretary.iss
           if ($LASTEXITCODE) { exit 1 }
-          Push-Location dist
-          Get-ChildItem -File | ForEach-Object { "{0}  {1}" -f (Get-FileHash $_.Name -Algorithm SHA256).Hash.ToLower(), $_.Name } | Out-File SHA256SUMS -Encoding ascii
-          Pop-Location
+          # hash first, then write: piping straight into Out-File opens SHA256SUMS while the folder is still being listed
+          $files = @(Get-ChildItem dist -File | Where-Object Name -ne 'SHA256SUMS')
+          if (-not $files.Count) { throw 'no installer in dist' }
+          $lines = $files | ForEach-Object { '{0}  {1}' -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name }
+          [IO.File]::WriteAllText((Join-Path (Resolve-Path dist) 'SHA256SUMS'), (($lines -join "`n") + "`n"), (New-Object Text.UTF8Encoding $false))
+          Get-Content dist\SHA256SUMS
 
       - name: Create GitHub Release
         shell: powershell
