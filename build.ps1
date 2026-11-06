@@ -27,10 +27,11 @@ if ($Tests) {
 
 if ($FetchWebView2) {
   # Microsoft.Web.WebView2 1.0.2365.46（BSD 许可，微软发布）；只取这三个文件，并核对 SHA256
+  # 钉的是这个 nuget 包里 lib\net45 的 Core / WinForms（.NET Framework 用）和 x64 的 WebView2Loader.dll（Windows PowerShell 5.1 是 64 位进程）
   $ver = '1.0.2365.46'
-  $pins = @{ 'Microsoft.Web.WebView2.Core.dll' = '98FE2F435D4A3AAAC4B96F4EF11915F12AAAC5BA702214ECA2154F575E3D9D10'
-             'Microsoft.Web.WebView2.WinForms.dll' = '449579558F62144F0E884324BDE96CA188C6FF2FBDBDC5AFF5B82BE0850D79F9'
-             'WebView2Loader.dll' = '95A001A77B41C642B63D2D5A583CD868C9782C806F9CC03FF55EE95E46601A23' }
+  $pins = @{ 'Microsoft.Web.WebView2.Core.dll' = 'A7BAA548C354EF9223F4FD19D2BAE33C3EB8CB987BF7B577828897388110740F'
+             'Microsoft.Web.WebView2.WinForms.dll' = '3BF5B0990756E5B8E6502D51BC228962D9D3E59A358EACA9BA8DC87BEA86C1DE'
+             'WebView2Loader.dll' = '5EBDA0B70E04873607FF0E8CEEA8FB29074B14717C2A67C2086F4EE42404EC7A' }
   $tmp = Join-Path ([IO.Path]::GetTempPath()) ('wv2_' + [guid]::NewGuid().ToString('n')); New-Item -ItemType Directory $tmp | Out-Null
   try {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
