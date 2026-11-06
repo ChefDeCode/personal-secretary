@@ -1,0 +1,4 @@
+{
+  "_说明": "秘书默认连的账号 / 商城服务端。想换成自己的服务端就改这里（只允许 https，或本机 http://127.0.0.1）。用户在设置里改的地址优先。",
+  "server_base": "https://secretary.demandatlas.online"
+}

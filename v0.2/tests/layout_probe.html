@@ -1,0 +1,18 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later · Copyright (C) 2026 ChefDeCode -->
+<!-- layout_test.ps1 用：加在界面副本末尾，放 14 张虚构卡片和 10 个轮次刻度，量有没有互相盖住 -->
+<script>
+window.onerror=function(m){document.documentElement.setAttribute('data-err',String(m))};
+setTimeout(function(){
+ var si=document.getElementById('streamIn');
+ for(var i=0;i<14;i++){var w=document.createElement('div');w.className='msg '+(i%2?'ai':'me');w.innerHTML='<div class="b" style="border:1px solid #888;padding:8px">示例卡片 '+i+' 虚构内容虚构内容虚构内容虚构内容虚构内容虚构内容虚构内容</div>';si.appendChild(w)}
+ var rail=document.getElementById('rail');rail.innerHTML='';for(var j=0;j<10;j++){var b=document.createElement('button');b.innerHTML='<i></i>';rail.appendChild(b)}
+ var tb=document.getElementById('toBottom');tb.hidden=false;document.getElementById('stream').scrollTop=200;
+ setTimeout(function(){
+  var cards=[].slice.call(document.querySelectorAll('#streamIn .msg > *')).map(function(e){return e.getBoundingClientRect()}).filter(function(r){return r.width>0});
+  function hit(a,b){return a.left<b.right&&b.left<a.right&&a.top<b.bottom&&b.top<a.bottom}
+  function ov(el,name){var r=el.getBoundingClientRect();if(!r.width)return name+':hidden';return name+':'+cards.filter(function(c){return hit(r,c)}).length}
+  var ticks=[].slice.call(rail.querySelectorAll('button i')).map(function(i){return i.getBoundingClientRect()});
+  var res={w:innerWidth,railTicksOverCards:ticks.filter(function(r){return cards.some(function(c){return hit(r,c)})}).length,railW:Math.round(rail.getBoundingClientRect().width),search:ov(document.getElementById('csOpen'),'search'),toBottom:ov(tb,'toBottom'),cardLeft:Math.round(Math.min.apply(null,cards.map(function(c){return c.left}))),hscroll:document.documentElement.scrollWidth>innerWidth,tb:JSON.stringify(tb.getBoundingClientRect()),cardRight:Math.round(Math.max.apply(null,cards.map(function(c){return c.right}))),streamR:JSON.stringify(document.getElementById('stream').getBoundingClientRect()),chatR:JSON.stringify(document.querySelector('.chat').getBoundingClientRect()),tbStyle:getComputedStyle(tb).right+'/'+getComputedStyle(tb).left+'/'+getComputedStyle(tb).transform};
+  document.documentElement.setAttribute('data-probe',JSON.stringify(res));
+ },900)},800);
+</script>

@@ -1,0 +1,206 @@
+<!doctype html><!-- SPDX-License-Identifier: AGPL-3.0-or-later · Copyright (C) 2026 ChefDeCode -->
+<html lang="zh">
+<meta charset="utf-8">
+<title>秘书 · 边缘线</title>
+<!-- 边缘小波浪：直接运行定稿 float_v2.html 里的 draw() / frame() / targetColor() / readTokens()（逐字照搬），requestAnimationFrame 驱动。
+     宿主（边缘线.ps1）是一个透明的小窗口：只有线附近能点中，其余地方鼠标穿透；状态由宿主每 0.3 秒推过来。 -->
+<style>
+:root{
+  --paper:#F4EFE6; --surface:#FBF8F2; --sunk:#F1ECE3;
+  --ink:#2B2722; --soft:#4A433B; --muted:#8A8073; --line:#E2DACC; --line2:#CFC5B4;
+  --clay:#C2643C; --clay-soft:#D98A66; --clay-wash:#F6E6DC; --ok:#5E7A55;
+  --idle:#A79C8D; --shadow:#2B272255;
+  --sans:"Microsoft YaHei UI","Segoe UI","PingFang SC",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#1E1B18; --surface:#2A2622; --sunk:#26231F;
+  --ink:#EDE6DA; --soft:#CFC6B8; --muted:#968C7E; --line:#3A342E; --line2:#4A433B;
+  --clay:#D98A66; --clay-soft:#C2643C; --clay-wash:#3A2A22; --ok:#9DB592;
+  --idle:#857B6E; --shadow:#000000AA; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#1E1B18; --surface:#2A2622; --sunk:#26231F;
+  --ink:#EDE6DA; --soft:#CFC6B8; --muted:#968C7E; --line:#3A342E; --line2:#4A433B;
+  --clay:#D98A66; --clay-soft:#C2643C; --clay-wash:#3A2A22; --ok:#9DB592;
+  --idle:#857B6E; --shadow:#000000AA; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:transparent;user-select:none;-webkit-user-select:none}
+#stage{position:fixed;inset:0;touch-action:none}
+#wv{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+#wp{fill:none;stroke:var(--idle);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+#hit{position:absolute;width:40px;border-radius:20px;cursor:pointer;background:transparent;border:0;padding:0;outline:none}
+#hit.dragging{cursor:grabbing}
+#pill{position:absolute;height:40px;max-width:calc(50% - 34px);border-radius:20px;background:var(--surface);border:1px solid var(--line);box-shadow:0 8px 24px -6px var(--shadow);display:flex;align-items:center;gap:8px;padding:0 16px;white-space:nowrap;font:13px var(--sans);color:var(--soft);clip-path:inset(0 0 0 100% round 20px);opacity:0;transition:clip-path .5s cubic-bezier(.2,.8,.2,1),opacity .3s;pointer-events:none}
+#pill.l{clip-path:inset(0 100% 0 0 round 20px)}
+#pill.on{clip-path:inset(0 0 0 0 round 20px);opacity:1}
+#pill b{color:var(--clay);font-weight:600}
+#pill span{overflow:hidden;text-overflow:ellipsis}
+html[data-page-active="false"] *,html[data-page-active="false"] *::before,html[data-page-active="false"] *::after{animation-play-state:paused!important}
+</style>
+<div id="stage">
+  <svg id="wv" aria-hidden="true"><path id="wp"/></svg>
+  <div id="pill" role="status" aria-live="polite"></div>
+  <button id="hit" aria-label="秘书小波浪：点一下打开或收起小浮窗，按住拖动换位置"></button>
+</div>
+<script src="lifecycle.js"></script>
+<script>
+(()=>{
+const $=s=>document.querySelector(s);
+const stage=$('#stage'),wv=$('#wv'),wp=$('#wp'),hit=$('#hit'),pill=$('#pill');
+const RM=matchMedia('(prefers-reduced-motion: reduce)');
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const host=m=>{try{window.chrome.webview.postMessage(m)}catch(e){}};
+
+const life=SecretaryLife({visible:true});
+let edgeFrame=0,steadyFrames=0,previousVisual='',sleeping=false;
+function requestFrame(){if(!edgeFrame&&life.visible()){if(sleeping){last=performance.now();fl=0;sleeping=false}edgeFrame=life.frame(now=>{edgeFrame=0;frame(now)})}}
+/* 状态：base = reading（干活）/ idle / paused（用户手动暂停读取）；alert = 没看过的 new / important；open = 小浮窗开着 */
+const S={base:'idle',alert:null,dnd:false,open:false,hover:false,drag:false,side:'right',x:0,y:0};
+
+/* ---------- 以下几何、颜色、逐帧逻辑逐字取自定稿 float_v2.html ---------- */
+let W=0,H=0;
+const P={x:0,y:0,len:150,amp:4,str:0,work:1,ring:0,phase:0,ripple:-1,col:null};
+const N=64,jit=[];let seed=7;
+for(let i=0;i<=N;i++){seed=(seed*9301+49297)%233280;jit.push((seed/233280-.5)*.7)}
+let mx=0,my=0;
+
+function edgeX(side){return W/2}   /* 宿主窗口以线为中心（贴边时朝外的一半在屏幕外），线离屏幕边仍是 18 */
+function layout(){
+  W=innerWidth;H=innerHeight;
+  wv.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  S.x=edgeX(S.side);S.y=H/2;
+  if(!P.x){P.x=S.x;P.y=S.y}
+  placePill();
+}
+function placeHit(){
+  const L=P.len+24;
+  if(S.drag){hit.style.left=(P.x-24)+'px';hit.style.top=(P.y-24)+'px';hit.style.width='48px';hit.style.height='48px';return}
+  hit.style.width='40px';hit.style.height=L+'px';
+  hit.style.left=(P.x-20)+'px';hit.style.top=(P.y-L/2)+'px';
+}
+function panelSide(){return S.side==='left'?'left':'right'}
+function placePill(){
+  const side=panelSide();
+  pill.classList.toggle('l',side==='left');
+  const pw=pill.offsetWidth||300;
+  pill.style.top=(S.y-20)+'px';
+  pill.style.left=(side==='right'?S.x-16-pw:S.x+16)+'px';
+}
+
+function draw(){
+  const L=P.len,dir=panelSide()==='right'?-1:1,k=2*Math.PI*1.25/L;
+  let d='';
+  for(let i=0;i<=N;i++){
+    const s=i/N,env=.35+.65*Math.sin(Math.PI*s);
+    const w=1-P.str; /* 悬浮时 w→0，波、抖动、划波一起归零，线完全拉直 */
+    let xl=P.x+w*(env*P.amp*Math.sin(k*s*L+P.phase)+jit[i]*(1-P.ring));
+    if(P.ripple>=0){const g=Math.exp(-Math.pow((s-P.ripple)/.1,2));xl+=w*dir*8*g}
+    const yl=P.y-L/2+s*L;
+    const th=-Math.PI/2+2*Math.PI*s*.9,R=13;
+    const xr=P.x+R*Math.cos(th),yr=P.y+R*Math.sin(th);
+    const x=xl+(xr-xl)*P.ring,y=yl+(yr-yl)*P.ring;
+    d+=(i?'L':'M')+x.toFixed(2)+' '+y.toFixed(2);
+  }
+  wp.setAttribute('d',d);
+}
+
+/* 颜色取自主题变量，切换深浅色时重新读取 */
+let C={};
+const hex=v=>{v=v.trim().replace('#','');return [0,2,4].map(i=>parseInt(v.slice(i,i+2),16))};
+const mix=(a,b,f)=>a.map((v,i)=>v+(b[i]-v)*f);
+function readTokens(){const cs=getComputedStyle(document.documentElement);C={idle:hex(cs.getPropertyValue('--idle')),soft:hex(cs.getPropertyValue('--clay-soft')),clay:hex(cs.getPropertyValue('--clay')),line2:hex(cs.getPropertyValue('--line2'))}}
+readTokens();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{readTokens();requestFrame()});
+new MutationObserver(()=>{readTokens();requestFrame()}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+function targetColor(b){
+  let c=S.base==='paused'?C.line2:S.alert==='important'?C.clay:S.alert==='new'?C.soft:C.idle;
+  if(S.dnd&&S.base!=='paused')c=mix(C.idle,C.soft,.6);
+  c=mix(c,mix(C.soft,C.clay,b),P.work);
+  return mix(c,C.clay,P.str); /* 悬浮时变暖 */
+}
+let last=performance.now(),t0=last;
+function ease(cur,tar,rate,dt){return cur+(tar-cur)*(1-Math.exp(-rate*dt))}
+function frame(now){
+  const dt=Math.min(.05,(now-last)/1000);last=now;const t=(now-t0)/1000;
+  const rm=RM.matches;
+  const breath=.5-.5*Math.cos(2*Math.PI*t/(rm?5.6:2.8));
+  P.work=ease(P.work,S.base==='reading'&&!S.drag?1:0,4,dt); /* 进出“干活”约半秒渐变 */
+  const restAmp=S.drag?1.5:S.base==='paused'?.3:S.alert?3.2:2.4;
+  const workAmp=rm?4.2:3+3.6*breath;
+  P.amp=ease(P.amp,restAmp+(workAmp-restAmp)*P.work,10,dt);
+  P.len=ease(P.len,(S.hover||S.open)&&!S.drag?196:150,8,dt);
+  P.str=ease(P.str,S.hover&&!S.drag?1:0,9,dt);
+  P.ring=ease(P.ring,S.drag?1:0,10,dt);
+  if(S.drag){P.x=S.x;P.y=S.y}else{P.x=ease(P.x,S.x,12,dt);P.y=ease(P.y,S.y,12,dt)}
+  if(!rm)P.phase+=2*Math.PI*dt/2.8*P.work;
+  const tc=targetColor(breath);
+  if(!P.col)P.col=tc.slice();
+  for(let i=0;i<3;i++)P.col[i]=ease(P.col[i],tc[i],7,dt);
+  wp.style.stroke='rgb('+P.col.map(Math.round).join(',')+')';
+  if(P.ripple>=0){P.ripple+=dt/.9;if(P.ripple>1.3)P.ripple=-1}
+  draw();placeHit();
+  stat(now);
+  // An idle wave stops changing after the easing settles. Resume on an input/state
+  // event rather than rebuilding the same 64-segment SVG sixty times per second.
+  const visual=wp.getAttribute('d')+'|'+wp.style.stroke+'|'+P.len.toFixed(2);
+  steadyFrames=visual===previousVisual?steadyFrames+1:0;previousVisual=visual;
+  const settled=S.base!=='reading'&&!S.drag&&P.ripple<0&&P.work<.0001&&P.ring<.0001&&Math.abs(P.str-(S.hover?1:0))<.0001;
+  if(!settled||steadyFrames<3||PR)requestFrame();else sleeping=true;
+}
+function ripple(){if(!RM.matches&&!S.dnd)P.ripple=-.15}
+let pillT;
+function showPill(who,text){
+  pill.innerHTML='<b>'+esc(who)+'</b><span>'+esc(text)+'</span>';
+  placePill();pill.classList.add('on');
+  life.clearTimeout(pillT);pillT=life.timeout(hidePill,6000);
+}
+function hidePill(){pill.classList.remove('on');life.clearTimeout(pillT)}
+/* ---------- 以上取自定稿 ---------- */
+
+/* 帧间隔记录（测量用）：最近 2000 帧 */
+const FI=[];let fl=0;
+function stat(now){if(fl)FI.push(now-fl);fl=now;if(FI.length>2000)FI.shift();
+  if(PR){PR.s.push([Math.round(now-PR.t0),+P.ring.toFixed(3),+P.x.toFixed(1),S.drag?1:0,screenX]);if(now-PR.t0>PR.ms){host({type:'probe',label:PR.label,s:PR.s});PR=null}}}
+/* 逐帧记录（测量用）：[毫秒, 圆环程度, 线在窗口里的 x, 是否拖动中, 窗口屏幕 x] */
+let PR=null;
+
+/* ---------- 指针：悬停、点击、拖动。拖动时由宿主移动窗口，线在窗口里保持不动并卷成圆环 ---------- */
+let down=null;
+hit.addEventListener('pointerenter',()=>{S.hover=true;requestFrame()});
+hit.addEventListener('pointerleave',()=>{if(!S.drag)S.hover=false;requestFrame()});
+hit.addEventListener('pointerdown',e=>{if(e.button!==0)return;hit.setPointerCapture(e.pointerId);down={x:e.screenX,y:e.screenY,moved:false}});
+hit.addEventListener('pointermove',e=>{
+  if(!down)return;
+  if(!down.moved&&Math.hypot(e.screenX-down.x,e.screenY-down.y)>5){down.moved=true;S.drag=true;hit.classList.add('dragging');hidePill();host({type:'dragStart'});requestFrame()}
+});
+function endDrag(){S.drag=false;hit.classList.remove('dragging');S.hover=false;host({type:'dragEnd'});requestFrame()}
+hit.addEventListener('pointerup',()=>{if(!down)return;if(down.moved)endDrag();else host({type:'click'});down=null});
+hit.addEventListener('pointercancel',()=>{if(down&&down.moved)endDrag();down=null});
+hit.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();host({type:'click'})}});
+
+/* ---------- 宿主消息 ---------- */
+function receive(d){
+  if(d.type==='state'){
+    S.base=d.base;S.alert=d.alert||null;S.dnd=!!d.dnd;S.open=!!d.open;
+    if(d.theme)document.documentElement.setAttribute('data-theme',d.theme);else document.documentElement.removeAttribute('data-theme');
+    if(d.side&&d.side!==S.side){S.side=d.side;S.x=edgeX(S.side);placePill()}
+    if(d.ripple)ripple();
+    if(d.pill&&(!S.dnd||d.pill.force))showPill(d.pill.who,d.pill.text);
+    if(d.test){if('hover' in d.test)S.hover=d.test.hover;if('drag' in d.test)S.drag=d.test.drag}
+  }
+  /* 真实鼠标由宿主的命中窗口接收（本页面所在窗口永远鼠标穿透）：悬停 / 拖动直接驱动定稿里的 S.hover / S.drag */
+  else if(d.type==='hover'){S.hover=!!d.on}
+  else if(d.type==='drag'){S.drag=!!d.on;if(S.drag){S.hover=false;hidePill()}}
+  else if(d.type==='probe'){PR={t0:performance.now(),ms:d.ms||1200,label:d.label,s:[]}}
+  else if(d.type==='stats'){const a=FI.slice(-(d.n||600)).sort((x,y)=>x-y),q=p=>a.length?a[Math.min(a.length-1,Math.floor(p*a.length))]:0;host({type:'stats',label:d.label,n:a.length,p50:q(.5),p95:q(.95),max:a.length?a[a.length-1]:0,over50:a.filter(x=>x>50).length});FI.length=0}
+  requestFrame();
+}
+window.chrome&&window.chrome.webview&&window.chrome.webview.addEventListener('message',e=>{const d=e.data;if(d.type==='pageVisibility'){life.setVisible(d.visible);return}life.accept(d,receive)});
+addEventListener('resize',()=>{layout();requestFrame()});
+layout();
+life.onChange(on=>{if(on){last=performance.now();fl=0;requestFrame()}});
+requestFrame();
+host({type:'ready'});
+})();
+</script>
+</html>

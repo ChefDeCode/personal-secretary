@@ -1,0 +1,71 @@
+<!doctype html><!-- SPDX-License-Identifier: AGPL-3.0-or-later · Copyright (C) 2026 ChefDeCode -->
+<html lang="zh">
+<meta charset="utf-8">
+<title>秘书 · 托盘菜单</title>
+<!-- 托盘右键菜单：第三版配色，细线图标，悬停是陶土浅底 + 陶土字；↑↓ 选择、Enter 执行、Esc 关闭。宿主（秘书.ps1）负责摆位置、显示/隐藏 -->
+<style>
+:root{--surface:#FBF8F2;--line:#E2DACC;--ink:#2B2722;--muted:#8A8073;--clay:#C2643C;--clay-wash:#F6E6DC;
+  --sans:"Microsoft YaHei UI","Segoe UI",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--surface:#2A2622;--line:#3A342E;--ink:#EDE6DA;--muted:#968C7E;--clay:#D98A66;--clay-wash:#3A2A22;color-scheme:dark}}
+:root[data-theme="dark"]{--surface:#2A2622;--line:#3A342E;--ink:#EDE6DA;--muted:#968C7E;--clay:#D98A66;--clay-wash:#3A2A22;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--surface);overflow:hidden;user-select:none;-webkit-user-select:none}
+#m{padding:5px;display:inline-flex;min-width:172px;flex-direction:column;font:13px/1.4 var(--sans);color:var(--ink);opacity:0;transform:translateY(4px)}
+#m.on{opacity:1;transform:none;transition:opacity .12s ease,transform .12s cubic-bezier(.2,.8,.2,1)}
+button{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;color:inherit;font:inherit;text-align:left;padding:7px 12px 7px 10px;border-radius:6px;cursor:default;outline:none;white-space:nowrap}
+button svg{flex:none;color:var(--muted)}
+button.sel{background:var(--clay-wash);color:var(--clay)}
+button.sel svg{color:var(--clay)}
+hr{border:0;border-top:1px solid var(--line);margin:4px 8px}
+@media (prefers-reduced-motion:reduce){#m,#m.on{transition:none;transform:none}}
+html[data-page-active="false"] *,html[data-page-active="false"] *::before,html[data-page-active="false"] *::after{animation-play-state:paused!important}
+</style>
+<div id="m" role="menu" aria-label="秘书"></div>
+<script src="lifecycle.js"></script>
+<script>
+(()=>{
+const m=document.getElementById('m');
+const life=SecretaryLife({visible:false});
+const host=x=>{try{window.chrome.webview.postMessage(x)}catch(e){}};
+const I={
+  open:'<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 8.5h17"/>',
+  mini:'<rect x="4" y="5" width="11" height="14" rx="2"/><path d="M19 7c1 1.6-1 3.4 0 5s-1 3.4 0 5"/>',
+miniClose:'<path d="M20 5v14"/><path d="M5 12h10m-3-3 3 3-3 3"/>',
+  pause:'<path d="M9 6v12M15 6v12"/>',
+  resume:'<path d="M8 5.5v13l10-6.5z"/>',
+  set:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68 1.65 1.65 0 0 0 10 3.17V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  quit:'<path d="M15 4h4v16h-4"/><path d="M10 8l-4 4 4 4"/><path d="M6 12h10"/>'
+};
+const ic=k=>'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+I[k]+'</svg>';
+let items=[],sel=-1;
+function render(paused,miniOpen){
+  const list=[['open','open','打开软件'],['mini',miniOpen?'miniClose':'mini',miniOpen?'关闭小浮窗':'打开小浮窗'],[paused?'resume':'pause','pause',paused?'继续读取':'暂停读取'],['set','settings','设置'],null,['quit','quit','退出秘书']];
+  m.innerHTML=list.map(x=>x?'<button role="menuitem" data-id="'+x[1]+'">'+ic(x[0])+'<span>'+x[2]+'</span></button>':'<hr>').join('');
+  items=[...m.querySelectorAll('button')];sel=-1;
+  items.forEach((b,i)=>{b.onmouseenter=()=>mark(i);b.onmouseleave=()=>mark(-1);b.onclick=()=>pick(i)});
+}
+function mark(i){sel=i;items.forEach((b,j)=>b.classList.toggle('sel',j===i))}
+function pick(i){if(i<0)return;host({type:'menu',id:items[i].dataset.id})}
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){e.preventDefault();host({type:'menu',id:'close'})}
+  else if(e.key==='ArrowDown'){e.preventDefault();mark(sel<0?0:(sel+1)%items.length)}
+  else if(e.key==='ArrowUp'){e.preventDefault();mark(sel<=0?items.length-1:sel-1)}
+  else if(e.key==='Enter'){e.preventDefault();pick(sel)}
+});
+window.chrome&&window.chrome.webview&&window.chrome.webview.addEventListener('message',e=>{
+  const d=e.data;
+  if(d.type==='pageVisibility'){life.setVisible(d.visible);return}
+  if(d.type==='show'){
+    life.setVisible(true);
+    if(d.theme)document.documentElement.setAttribute('data-theme',d.theme);else document.documentElement.removeAttribute('data-theme');
+    render(!!d.paused,!!d.miniOpen);m.classList.remove('on');void m.offsetWidth;m.classList.add('on');
+    const r=m.getBoundingClientRect();host({type:'size',w:Math.ceil(r.width),h:Math.ceil(r.height)});
+    window.focus();
+  }
+  else if(d.type==='hide'){m.classList.remove('on');mark(-1);life.setVisible(false)}
+});
+render(false,false);
+const r=m.getBoundingClientRect();host({type:'ready',w:Math.ceil(r.width),h:Math.ceil(r.height)});
+})();
+</script>
+</html>

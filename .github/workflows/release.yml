@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 ChefDeCode
+# 打 v* 标签时：从源码编译 → 打安装包 → 连同 SHA256SUMS 放进 GitHub Release。只做这三件事，不跑测试
+# 权限只有 contents: write；只用 GitHub 自带的 GITHUB_TOKEN，不用别的 secret
+name: release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2 (pinned by commit)
+
+      - name: Build from source (csc from .NET Framework; WebView2 SDK from nuget.org, SHA256-pinned)
+        shell: powershell
+        run: .\build.ps1 -FetchWebView2
+
+      # Inno Setup 6 has been listed in the windows-2022 runner image software list
+      # (https://github.com/actions/runner-images/blob/main/images/windows/Windows2022-Readme.md).
+      # windows-latest may move to an image without it, so install it from Chocolatey when ISCC.exe is missing.
+      - name: Make sure Inno Setup is available
+        shell: powershell
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; if ($LASTEXITCODE) { exit 1 } }
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe not found after install" }
+          "ISCC=$iscc" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Build installer
+        shell: powershell
+        run: |
+          $ver = $env:GITHUB_REF_NAME.TrimStart('v')
+          & $env:ISCC "/DAppVersion=$ver" installer\secretary.iss
+          if ($LASTEXITCODE) { exit 1 }
+          Push-Location dist
+          Get-ChildItem -File | ForEach-Object { "{0}  {1}" -f (Get-FileHash $_.Name -Algorithm SHA256).Hash.ToLower(), $_.Name } | Out-File SHA256SUMS -Encoding ascii
+          Pop-Location
+
+      - name: Create GitHub Release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME (Get-ChildItem dist -File).FullName --title "个人秘书 $env:GITHUB_REF_NAME" --notes "Windows 安装包（只装给当前用户，不需要管理员）。安装包没有代码签名，SmartScreen 会提示「未知发布者」：点「更多信息」→「仍要运行」。用 SHA256SUMS 核对下载的文件。"

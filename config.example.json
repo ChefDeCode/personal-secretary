@@ -1,0 +1,10 @@
+{
+  "_说明": "示例设置。秘书第一次运行时会自己在程序文件夹里建 config.json，通常不需要手动建。AI 密钥只能在秘书的设置里填（会用 DPAPI 加密），不要写进这个文件。",
+  "name": "秘书",
+  "permissions": { "read_screen": true, "scroll": true, "click_sessions": true, "cloud_text": true, "cloud_images": false, "send_messages": true, "type_or_send": false },
+  "features": { "watch_wechat": true, "ghost_read": true, "watch_folders": false, "watch_outlook": false },
+  "launch_apps": [],
+  "ai": { "provider": "anthropic", "models": {}, "keys": {}, "compatBase": "" },
+  "dnd": false,
+  "apps": []
+}

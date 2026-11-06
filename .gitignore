@@ -1,0 +1,28 @@
+# 个人数据和密钥（永远不提交） / personal data and keys — never commit
+data/
+v0.2/data/
+config.json
+.env
+*.dat
+*.key
+*.pfx
+*.p12
+*.pem
+account.*
+hmac.key
+
+# 编译产物和下载的依赖 / build output and downloaded dependencies
+*.exe
+*.dll
+lib/webview2/
+dist/
+
+# 日志、截图、临时文件 / logs, screenshots, temp files
+*.log
+*.jsonl
+*.png
+*.jpg
+*.bak*
+旧东西/
+test-runs/
+reliability-code-backups/

@@ -1,0 +1,1138 @@
+<!doctype html><!-- SPDX-License-Identifier: AGPL-3.0-or-later · Copyright (C) 2026 ChefDeCode --><html lang="zh"><meta charset="utf-8"><title>个人秘书</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* 布局：可收起的侧栏 | 唯一的对话 | 今天的提醒卡片，三栏在同一层，今天展开时对话变窄。设置是对话栏里的一层，按“列表 → 下一层”渐进展开 */
+:root{
+  --paper:#F4EFE6; --side:#EFE9DF; --surface:#FBF8F2; --sunk:#F1ECE3;
+  --ink:#2B2722; --soft:#4A433B; --muted:#8A8073; --line:#E2DACC; --line2:#CFC5B4;
+  --clay:#C2643C; --clay-soft:#D98A66; --clay-wash:#F6E6DC; --ok:#5E7A55;
+  --serif:"Noto Serif SC","Source Han Serif SC","Songti SC",serif;
+  --sans:"Microsoft YaHei UI","Segoe UI","PingFang SC",system-ui,sans-serif;
+  --mono:"Cascadia Mono","Consolas",ui-monospace,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#1E1B18; --side:#22201C; --surface:#2A2622; --sunk:#26231F;
+  --ink:#EDE6DA; --soft:#CFC6B8; --muted:#968C7E; --line:#3A342E; --line2:#4A433B;
+  --clay:#D98A66; --clay-soft:#C2643C; --clay-wash:#3A2A22; --ok:#9DB592; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#1E1B18; --side:#22201C; --surface:#2A2622; --sunk:#26231F;
+  --ink:#EDE6DA; --soft:#CFC6B8; --muted:#968C7E; --line:#3A342E; --line2:#4A433B;
+  --clay:#D98A66; --clay-soft:#C2643C; --clay-wash:#3A2A22; --ok:#9DB592; color-scheme:dark}
+
+html,body{height:100%}
+body{background:var(--paper);color:var(--ink);font:14px/1.65 var(--sans);-webkit-font-smoothing:antialiased;overflow:hidden;margin:0}
+*{box-sizing:border-box}
+button,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--clay);outline-offset:2px;border-radius:6px}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background:var(--clay);background-clip:padding-box}
+::-webkit-scrollbar-button{display:none}
+svg{flex:none}
+.ib{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:8px;border:0;background:transparent;color:var(--muted);cursor:pointer}
+.ib:hover{background:var(--sunk);color:var(--ink)}
+.noanim,.noanim *{transition:none!important}
+
+.app{--sw:220px;--tw:0px;display:grid;grid-template-columns:var(--sw) minmax(0,1fr) var(--tw);height:100%;transition:grid-template-columns .35s cubic-bezier(.2,.8,.2,1)}
+.app.collapsed{--sw:56px}
+.app.todayOn{--tw:340px}
+
+/* 侧栏 */
+.side{background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;gap:14px;padding:14px 10px;min-width:0;overflow:hidden}
+.side .top{display:flex;align-items:center;gap:6px}
+.brand{display:flex;align-items:center;gap:8px;font:700 17px/1 var(--serif);white-space:nowrap;padding-left:4px}
+.side .top .ib{margin-left:auto}
+.collapsed #brandName,.collapsed .side .lbl,.collapsed .stat{display:none}
+.collapsed .side .top{flex-direction:column}
+.collapsed .side .top .ib{margin-left:0}
+.collapsed .brand{padding-left:0}
+.stat{font-size:12.5px;color:var(--muted);padding:0 6px 0 34px;white-space:nowrap;margin-top:-8px}
+
+/* 小波浪就是呼吸灯：空闲静止，读取时 2.8 秒一呼吸、波浪同周期往前流，有新提醒起伏一次后保持淡陶土色，暂停时拉平 */
+.wave{display:inline-grid;place-items:center;width:24px;height:18px;color:var(--muted);transition:color .6s}
+.wave svg{display:block;overflow:hidden}
+.wave path{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+.wave .amp{transform-box:view-box;transform-origin:12px 9px;transform:scaleY(.35);transition:transform .6s cubic-bezier(.2,.8,.2,1)}
+.wave[data-state="reading"]{animation:wC 2.8s ease-in-out infinite}
+.wave[data-state="reading"] .amp{animation:wA 2.8s ease-in-out infinite}
+.wave[data-state="reading"] .flow{animation:wF 2.8s linear infinite}
+.wave[data-state="new"]{color:var(--clay-soft)}
+.wave[data-state="new"] .amp{transform:scaleY(.5);animation:wS 1.4s cubic-bezier(.3,.7,.3,1) 1}
+.wave[data-state="new"] .flow{animation:wF 1.4s cubic-bezier(.2,.8,.2,1) 1}
+.wave[data-state="paused"]{color:var(--line2)}
+.wave[data-state="paused"] .amp{transform:scaleY(.04)}
+@keyframes wC{0%,100%{color:#D98A66}50%{color:#C2643C}}
+@keyframes wA{0%,100%{transform:scaleY(.7)}50%{transform:scaleY(1)}}
+@keyframes wF{from{transform:translateX(0)}to{transform:translateX(-12px)}}
+@keyframes wS{0%{transform:scaleY(.35)}35%{transform:scaleY(1.25)}100%{transform:scaleY(.5)}}
+
+.navb{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px;border:0;background:transparent;color:var(--soft);cursor:pointer;width:100%;text-align:left;white-space:nowrap}
+.navb:hover{background:var(--sunk);color:var(--ink)}
+.navb[aria-current="true"],.navb[aria-pressed="true"]{background:var(--sunk);color:var(--ink);font-weight:600}
+.side .bottom{margin-top:auto;display:flex;flex-direction:column;gap:2px}
+
+/* 对话 */
+.chat{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative;overflow:hidden}
+.stream{flex:1;overflow:auto;padding-block:28px 12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:16px}
+.stream .in{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+.compact{border:1px dashed var(--line2);border-radius:10px;padding:8px 12px;color:var(--muted);font-size:12.5px}
+.compact summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px}
+.compact summary::-webkit-details-marker{display:none}
+.compact summary svg{transition:transform .25s}
+.compact[open] summary svg{transform:rotate(90deg)}
+.compact p{margin:8px 0 2px;color:var(--soft);font-size:13px}
+.msg{display:flex;flex-direction:column;gap:6px}
+.msg.me{align-items:flex-end}
+.msg.me .b{background:var(--sunk);border:1px solid var(--line);border-radius:12px 12px 4px 12px;padding:8px 12px;max-width:80%}
+.msg.ai .b{max-width:100%;color:var(--ink)}
+.msg.ai .b p{margin:0 0 6px}
+.step{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12.5px;font-family:var(--mono)}
+.step svg{color:var(--ok)}
+.step.mute svg{color:var(--muted)}
+.file{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:4px 10px;font-size:13px}
+.file small{color:var(--muted)}
+
+/* Claude Code 式确认卡 */
+.confirm{border:1px solid var(--line2);background:var(--surface);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.confirm .h{display:flex;align-items:center;gap:8px;font:700 15px/1.4 var(--serif)}
+.confirm .h .src{font:500 12px var(--sans);color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:0 8px}
+.preview{border-left:2px solid var(--clay);padding:4px 0 4px 12px;display:flex;flex-direction:column;gap:6px;color:var(--soft)}
+.quote{background:var(--sunk);border-radius:8px;padding:8px 12px;display:flex;flex-direction:column;gap:4px;font-size:13.5px;color:var(--soft)}
+.quote .qm{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.quote .img{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+.jump{margin-left:auto;border:0;background:transparent;color:var(--clay);cursor:pointer;font-size:12px;padding:0}
+.jump:disabled{color:var(--muted);cursor:default}
+.opts{display:flex;flex-direction:column;gap:4px}
+.opt{display:grid;grid-template-columns:18px 20px minmax(0,1fr);align-items:center;gap:6px;padding:6px 8px;border-radius:8px;border:0;background:transparent;cursor:pointer;text-align:left}
+.opt .ptr{color:var(--clay);opacity:0}
+.opt .k{font-family:var(--mono);color:var(--muted);font-size:12.5px}
+.opt:hover,.opt.sel{background:var(--sunk)}
+.opt.sel .ptr{opacity:1}
+.opt.sel .t{color:var(--ink);font-weight:600}
+.opt input{border:0;border-bottom:1px solid var(--line2);background:transparent;padding:2px 0;width:100%}
+.opt input:focus{outline:none;border-bottom-color:var(--clay)}
+.confirm .hint{font-size:12px;color:var(--muted);font-family:var(--mono)}
+.confirm.closed .opts,.confirm.closed .hint{display:none}
+.result{display:flex;flex-direction:column;gap:4px}
+
+/* 输入框 */
+.composer{padding:10px 16px 16px;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+.composer .box{max-width:720px;margin:0 auto;border:1px solid var(--line2);background:var(--surface);border-radius:14px;padding:10px 10px 8px 14px;display:flex;flex-direction:column;gap:6px}
+.composer .box:focus-within{border-color:var(--clay-soft)}
+.composer textarea{border:0;background:transparent;resize:none;min-height:24px;max-height:160px;outline:none}
+.composer .row{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px}
+.send{margin-left:auto;width:30px;height:30px;border-radius:50%;border:0;background:var(--ink);color:var(--paper);display:grid;place-items:center;cursor:pointer}
+.send:hover{background:var(--clay)}
+.sugs{display:flex;gap:6px;flex-wrap:wrap;max-width:720px;margin:0 auto 8px}
+.sug{border:1px solid var(--line);background:transparent;border-radius:999px;padding:2px 10px;font-size:12.5px;color:var(--soft);cursor:pointer}
+.sug:hover{border-color:var(--clay);color:var(--clay)}
+
+/* 今天：和对话在同一层，宽度从 0 展开 */
+.today{min-width:0;overflow:hidden;background:var(--paper);box-shadow:inset 1px 0 var(--line)}
+.tin{width:340px;height:100%;overflow:auto;padding:22px 16px 24px;padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:18px}
+.today h2{font:700 20px/1.2 var(--serif);margin:0;display:flex;align-items:baseline;gap:10px}
+.today h2 small{font:400 12.5px var(--sans);color:var(--muted)}
+.grp h3{font:600 12.5px var(--sans);color:var(--muted);margin:0 0 8px;display:flex;gap:6px}
+.tc{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;transition:opacity .3s}
+.tc + .tc{margin-top:8px}
+.tc .m{display:flex;gap:6px;font-size:12px;color:var(--muted)}
+.tc .m .s{color:var(--clay)}
+.tc .m .t{margin-left:auto;font-variant-numeric:tabular-nums}
+.tc .m .t.due{color:var(--clay);font-weight:600}
+.tc p{margin:0;font-size:13.5px}
+.tc .a{display:flex;gap:6px}
+.tc.fresh{animation:fresh 2s ease-out}
+@keyframes fresh{from{background:var(--clay-wash);border-color:var(--clay-soft)}to{background:var(--surface);border-color:var(--line)}}
+.mini{border:1px solid var(--line2);background:transparent;border-radius:7px;padding:2px 10px;font-size:12.5px;cursor:pointer}
+.mini:hover{border-color:var(--clay);color:var(--clay)}
+.mini.q{border-color:transparent;color:var(--muted)}
+.tc.gone{opacity:.45}
+.tc.gone p{text-decoration:line-through;text-decoration-color:var(--line2)}
+.tc.gone [data-reply-btn]{display:none}
+
+/* 设置层 */
+.sheet{position:absolute;inset:0;background:var(--paper);overflow:auto;padding:28px 16px 40px;transform:translateY(10px);opacity:0;pointer-events:none;transition:opacity .25s,transform .3s cubic-bezier(.2,.8,.2,1);z-index:5}
+.sheet.on{opacity:1;transform:none;pointer-events:auto}
+.sheet .in{max-width:620px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+.sheet h1{font:700 24px/1.2 var(--serif);margin:0}
+.back{display:inline-flex;align-items:center;gap:4px;border:0;background:transparent;color:var(--clay);cursor:pointer;padding:0;font-size:13.5px;align-self:flex-start}
+.group{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.it{display:flex;align-items:center;gap:12px;padding:11px 14px;border-top:1px solid var(--line);min-height:46px;width:100%;background:transparent;border-left:0;border-right:0;border-bottom:0;text-align:left}
+.it:first-child{border-top:0}
+button.it{cursor:pointer}
+button.it:hover{background:var(--sunk)}
+.it .l{flex:1;min-width:0}
+.it .v{color:var(--muted);font-size:13px;white-space:nowrap}
+.it .chev{color:var(--line2)}
+.it .ico{width:28px;height:28px;border-radius:7px;background:var(--sunk);border:1px solid var(--line);display:grid;place-items:center;color:var(--soft)}
+.it input.nm{border:0;background:transparent;text-align:right;color:var(--muted);width:8em;outline:none}
+.it input.nm:focus{color:var(--ink)}
+.sw{position:relative;width:34px;height:20px;flex:none;border-radius:999px;background:var(--line2);border:0;cursor:pointer;transition:background .25s}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px #0002;transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+.sw[aria-checked="true"]{background:var(--clay)}
+.sw[aria-checked="true"]::after{transform:translateX(14px)}
+.seg{display:inline-flex;border:1px solid var(--line2);border-radius:8px;padding:2px;background:var(--paper)}
+.seg button{border:0;background:transparent;padding:2px 10px;border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--soft)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.foot{font-size:12px;color:var(--muted);margin:0}
+.page{display:flex;flex-direction:column;gap:18px}
+.danger{color:var(--clay)}
+/* 记忆页 */
+.memadd input{flex:1;min-width:0;border:0;background:transparent;outline:none;font-size:13.5px}
+.memadd input::placeholder,.memsearch input::placeholder{color:var(--muted)}
+.memsearch{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:7px 12px;color:var(--muted)}
+.memsearch input{flex:1;min-width:0;border:0;background:transparent;outline:none;color:var(--ink);font-size:13.5px}
+.memh{font:600 12.5px var(--sans);color:var(--muted);margin:0 0 8px 4px;display:flex;gap:6px;align-items:baseline}
+.memh b{font-weight:600;color:var(--ink)}
+.mem{display:flex;flex-direction:column;gap:4px;padding:11px 14px;border-top:1px solid var(--line)}
+.mem:first-child{border-top:0}
+.mem .mt{font-size:14px;color:var(--ink);overflow-wrap:anywhere}
+.mem .mm{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;color:var(--muted)}
+.mem .tag{border:1px solid var(--line);border-radius:999px;padding:0 7px;font-size:11.5px}
+.mem .tag.c{color:var(--clay);border-color:var(--clay-soft)}
+.mem .ma{display:flex;gap:14px;margin-top:2px}
+.lk{border:0;background:transparent;padding:0;color:var(--clay);cursor:pointer;font-size:12.5px}
+.lk.q{color:var(--muted)}
+.lk:hover{text-decoration:underline}
+.mem .ask{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--soft)}
+.mem textarea{width:100%;border:1px solid var(--line2);border-radius:8px;background:var(--paper);color:var(--ink);font:inherit;font-size:13.5px;padding:6px 10px;resize:vertical;min-height:54px;outline:none}
+.mem textarea:focus{border-color:var(--clay-soft)}
+.msrc{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.msrc .quote{font-size:13px}
+.hide{border:1px dashed var(--line2);background:transparent;color:var(--muted);border-radius:8px;padding:3px 10px;font-size:12.5px;cursor:pointer;align-self:flex-start}
+.mcard{border:1px solid var(--clay-soft);background:var(--surface);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.mcard .h{font:700 14.5px/1.4 var(--serif)}
+.mcard .vs{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:13px}
+.mcard .vs span:nth-child(odd){color:var(--muted);font-size:12px;padding-top:1px}
+.mcard .acts{display:flex;gap:8px;flex-wrap:wrap}
+.mempty{padding:14px;color:var(--muted);font-size:13px}
+.tc .m .s.who{color:var(--ink);font-weight:600;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tc p.qt{color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 添加软件选择器 */
+.picker{width:min(460px,100%);max-height:min(620px,calc(100vh - 48px));display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--line2);border-radius:14px;padding:14px;box-shadow:0 20px 50px -20px #0007;animation:pkin .22s cubic-bezier(.2,.8,.2,1)}
+@keyframes pkin{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+.pkh{display:flex;align-items:center;justify-content:space-between;font:700 15px/1.4 var(--serif)}
+.pklist{flex:1;min-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:1px;margin:0 -6px;padding:0 6px;scroll-behavior:smooth}
+.pklist .sec{font:600 12px var(--sans);color:var(--muted);padding:8px 8px 4px;position:sticky;top:0;background:var(--surface);z-index:1}
+.pkr{display:flex;align-items:center;gap:10px;border:0;background:transparent;border-radius:8px;padding:6px 8px;text-align:left;color:var(--ink);cursor:pointer;font:inherit;width:100%}
+.pkr:hover,.pkr.sel{background:var(--sunk)}
+.pkr .tile{width:22px;height:22px;flex:none;border-radius:6px;background:var(--sunk);border:1px solid var(--line);color:var(--muted);font:600 12px/20px var(--sans);text-align:center}
+.pkr .nm{flex:1;min-width:0;display:flex;flex-direction:column}
+.pkr .nm span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13.5px}
+.pkr .nm small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11.5px;color:var(--muted)}
+.pkr .tg{flex:none;font-size:11.5px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:0 7px}
+.pkr.done{opacity:.5;cursor:default}
+.pkr.done:hover{background:transparent}
+.pkfoot{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pkfoot .foot{margin-left:auto}
+.pkempty{padding:10px 8px;color:var(--muted);font-size:13px}
+/* 今天栏：收起按钮；接下来 */
+.today h2 .tclose{margin-left:auto;align-self:center;width:28px;height:28px}
+.nx h3{margin-bottom:6px}
+.nxd{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.nxd .dl{font-size:12px;color:var(--muted);font-weight:600}
+.nxi{display:grid;grid-template-columns:42px minmax(0,1fr);gap:2px 8px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.nxi .t{font:12px var(--mono);color:var(--muted);padding-top:2px}
+.nxi .t.k{color:var(--clay)}
+.nxi .w{font-size:13.5px;color:var(--ink);overflow-wrap:anywhere}
+.nxi .m{grid-column:2;font-size:12px;color:var(--muted)}
+.nxi .m .tag{border:1px solid var(--line);border-radius:999px;padding:0 6px;margin-right:6px;font-size:11px}
+.tip{display:flex;flex-direction:column;gap:6px;border:1px dashed var(--clay-soft);border-radius:10px;padding:8px 10px;background:transparent}
+.tip .tt{font-size:13px;color:var(--soft)}
+.tip .tt b{font:600 11px var(--sans);color:var(--clay);border:1px solid var(--clay-soft);border-radius:999px;padding:0 6px;margin-right:6px}
+.tip .ta{display:flex;gap:6px}
+.tc .pred,.row .pred{display:flex;align-items:center;gap:6px;width:100%;min-width:0;text-align:left;background:var(--clay-wash);border:1px solid var(--clay-soft);border-radius:8px;padding:3px 8px;font:12.5px var(--sans);color:var(--ink);cursor:pointer}
+.tc .pred b,.row .pred b{flex:none;font-size:11px;font-weight:600;color:var(--clay)}
+.tc .pred span,.row .pred span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nxempty{margin:0;color:var(--muted);font-size:13px}
+.tc p.nx{font-size:12px;color:var(--muted);margin-top:2px}
+#actList .tc .m .s{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#actList .tc .m .t{flex:none;white-space:nowrap}
+.tm{width:6.5em!important;text-align:right}
+.tmr{display:inline-flex;align-items:center;gap:4px;color:var(--muted)}
+.tmr .tm{width:5.6em!important}
+/* 软件列表：… 菜单、移除确认、撤销提示 */
+.apps .navb{position:relative}
+.apps .more{display:none;flex:none;margin-left:4px;width:22px;height:22px;border-radius:6px;place-items:center;color:var(--muted)}
+.apps .navb:hover .more,.apps .navb:focus-visible .more{display:grid}
+.apps .more:hover{background:var(--line);color:var(--ink)}
+.collapsed .apps .more{display:none!important}
+.apps .navb.leaving,.it.leaving{overflow:hidden;transition:height .2s ease,opacity .2s ease,padding .2s ease;height:0!important;opacity:0;padding-top:0;padding-bottom:0}
+.pop{position:fixed;z-index:20;min-width:120px;background:var(--surface);border:1px solid var(--line2);border-radius:10px;box-shadow:0 10px 30px -10px #0005;padding:4px}
+.pop[hidden]{display:none}
+.pop button{display:flex;align-items:center;gap:8px;width:100%;border:0;background:transparent;border-radius:7px;padding:6px 10px;cursor:pointer;color:var(--ink);font-size:13px;text-align:left}
+.pop button:hover,.pop button:focus-visible{background:var(--sunk);color:var(--clay);outline:none}
+.modal{position:fixed;inset:0;z-index:30;background:#0003;display:grid;place-items:center;padding:16px}
+.modal[hidden],.toast[hidden]{display:none}
+.modal .confirm{width:min(420px,100%);box-shadow:0 20px 50px -20px #0007}
+/* 账号 / 商城 */
+.acode{font:600 26px/1.2 var(--mono,ui-monospace,Consolas,monospace);letter-spacing:.12em;text-align:center;padding:10px;border:1px dashed var(--line2);border-radius:10px;background:var(--sunk)}
+.meter{height:6px;border-radius:3px;background:var(--sunk);overflow:hidden;margin-top:6px}.meter i{display:block;height:100%;background:var(--ink);border-radius:3px}
+.meter.low i{background:var(--clay)}
+.acard{padding:14px;display:flex;flex-direction:column;gap:10px}.acard .acts{display:flex;gap:6px;flex-wrap:wrap}
+.acard .pri,.qcard .pri{border:0;background:var(--ink);color:var(--paper);border-radius:8px;padding:6px 14px;cursor:pointer;font:inherit;font-size:13px}
+.acard .sec,.qcard .sec{border:1px solid var(--line2);background:transparent;border-radius:8px;padding:5px 12px;cursor:pointer;font:inherit;font-size:13px}
+.risk{font-size:11px;border-radius:5px;padding:1px 6px;border:1px solid var(--line2);color:var(--muted);white-space:nowrap}.risk.high{border-color:var(--clay);color:var(--clay)}
+.perms{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}.perms li{display:flex;gap:8px;align-items:baseline;font-size:13px}.perms li.send{color:var(--clay);font-weight:600}
+.qcard{border:1px solid var(--line2);border-radius:10px;padding:10px 12px;margin-top:6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}.qcard p{margin:0;flex:1;min-width:10em;font-size:13px}
+.rmlist{margin:0;padding-left:18px;color:var(--soft);font-size:13.5px;display:flex;flex-direction:column;gap:2px}
+.chk{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:var(--soft);cursor:pointer}
+.chk input{margin-top:3px;accent-color:var(--clay)}
+.toast{position:fixed;left:50%;bottom:22px;z-index:25;transform:translate(-50%,8px);opacity:0;transition:opacity .2s,transform .25s cubic-bezier(.2,.8,.2,1);display:flex;align-items:center;gap:14px;background:var(--ink);color:var(--paper);border-radius:999px;padding:8px 10px 8px 16px;font-size:13px;box-shadow:0 10px 30px -10px #0006}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.toast .lk{color:var(--clay-soft);font-size:13px}
+@media (prefers-reduced-motion:reduce){.toast,.apps .navb.leaving,.it.leaving{transition:none}}
+#memGroups,#memPend,#memConf,#memUsed,#memArch{display:flex;flex-direction:column;gap:18px}
+#memGroups:empty,#memPend:empty,#memConf:empty,#memUsed:empty,#memArch:empty{display:none}
+#memPend .memh,#memUsed .memh,#memArch .memh{margin-bottom:-10px}
+#memGroups section{display:flex;flex-direction:column;gap:8px}
+#memGroups .memh{margin:0 0 0 4px}
+
+@media (max-width:1060px){
+  .app,.app.collapsed{--sw:56px}
+  .app.todayOn{--tw:300px}
+  .tin{width:300px}
+  .app #brandName,.app .side .lbl,.app .stat{display:none}
+  .app .brand{padding-left:0}
+  .app .side .top{flex-direction:column}
+  .app .side .top .ib.col{display:none}
+}
+@media (max-width:560px){
+  .app,.app.collapsed{grid-template-columns:minmax(0,1fr) 0;grid-template-rows:auto minmax(0,1fr)}
+  .app.todayOn{grid-template-columns:0 minmax(0,1fr)}
+  .app.todayOn .chat{visibility:hidden}
+  .tin{width:100%}
+  .side{flex-direction:row;align-items:center;padding:8px 12px;border-right:0;border-bottom:1px solid var(--line);grid-column:1 / -1}
+  .app .side .top{flex-direction:row}
+  .side .bottom{margin:0 0 0 auto;flex-direction:row}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition-duration:.01ms!important}
+  .wave .flow{animation:none!important}
+  .wave[data-state="reading"],.wave[data-state="reading"] .amp{animation-duration:5.6s}
+  .wave[data-state="new"] .amp{animation:none}
+}
+.page[hidden]{display:none!important}   /* .page 的 display:flex 会盖过 hidden 属性，导致设置首页和子页叠在一起 */
+.page.in-f{animation:pgf .22s cubic-bezier(.2,.8,.2,1)}.page.in-b{animation:pgb .22s cubic-bezier(.2,.8,.2,1)}
+@keyframes pgf{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}@keyframes pgb{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.page.in-f,.page.in-b{animation:none}}
+.confirm .acts{display:flex;gap:6px}.confirm .pri{border:0;background:var(--ink);color:var(--paper);border-radius:8px;padding:5px 14px;cursor:pointer;font:inherit;font-size:13px}.confirm .pri:hover{background:var(--clay)}.confirm .sec{border:1px solid var(--line2);background:transparent;border-radius:8px;padding:5px 12px;cursor:pointer;font:inherit;font-size:13px;color:var(--soft)}.confirm .sec:hover{border-color:var(--clay);color:var(--clay)}
+/* 侧栏软件列表 */
+.apps{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;gap:2px;margin:4px -4px 0;padding:0 4px}
+.apps.fade-t{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 18px)}
+.apps.fade-b{-webkit-mask-image:linear-gradient(to top,transparent 0,#000 18px)}
+.apps.fade-t.fade-b{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 18px,#000 calc(100% - 18px),transparent 100%)}
+.apps::-webkit-scrollbar{width:6px}
+.apps .navb{flex:none}
+.apps .lbl{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.side{user-select:none;-webkit-user-select:none}   /* 侧栏是按钮，不该被选中成蓝色 */
+.apps::-webkit-scrollbar-button{display:none;height:0}
+.apps .tile{width:18px;height:18px;flex:none;border-radius:5px;background:var(--sunk);border:1px solid var(--line);color:var(--muted);font:600 11px/16px var(--sans);text-align:center;overflow:hidden}
+.apps .navb[aria-pressed="true"] .tile{border-color:var(--clay-soft);color:var(--clay)}
+.apps .navb.off{color:var(--muted)}
+.apps .navb.off .tile{opacity:.6}
+.apps .hint{display:none;margin-left:auto;padding-left:8px;font-size:12px;font-weight:400;color:var(--muted);flex:0 1000 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}   /* 平时不占位置；悬停时出现，空间不够先缩提示、不缩名字 */
+.apps .navb:hover .hint,.apps .navb:focus-visible .hint{display:block}
+.apps .add .tile{background:transparent;border-style:dashed}
+.collapsed .apps .hint{display:none}
+@media (max-width:1060px){.app .apps .hint{display:none}}
+@media (max-width:560px){.apps{flex-direction:row;overflow-x:auto;overflow-y:hidden;margin:0;flex:1}.apps .navb{width:auto}}
+.pick{display:flex;flex-direction:column;gap:2px;max-height:280px;overflow:auto;margin:2px -4px;padding:0 4px}
+.pick button{display:flex;align-items:center;gap:10px;border:0;background:transparent;border-radius:8px;padding:7px 8px;text-align:left;color:var(--ink);cursor:pointer;font:inherit}
+.pick button:hover,.pick button:focus-visible{background:var(--sunk)}
+.pick .tile{width:18px;height:18px;flex:none;border-radius:5px;background:var(--sunk);border:1px solid var(--line);color:var(--muted);font:600 11px/16px var(--sans);text-align:center}
+.can{margin:0;padding-left:18px;font-size:13px;color:var(--soft);display:flex;flex-direction:column;gap:2px}
+.can .no{color:var(--muted)}
+.apps .navb.adapting .tile{animation:tileBreath 2.8s ease-in-out infinite}
+.apps .navb.adapting .hint{display:block;color:var(--clay)}
+@keyframes tileBreath{0%,100%{border-color:var(--line);color:var(--muted)}50%{border-color:var(--clay);color:var(--clay)}}
+@media (prefers-reduced-motion:reduce){.apps .navb.adapting .tile{animation:none;border-color:var(--clay);color:var(--clay)}}
+/* —— 聊天：左边按轮次的滚动条、回到最新、搜聊天记录 —— */
+.rail{position:absolute;left:6px;top:16px;bottom:120px;width:22px;overflow-y:auto;scrollbar-width:none;display:flex;flex-direction:column;gap:5px;padding:4px 0;z-index:3}
+.rail::-webkit-scrollbar{display:none}
+.rail button{flex:none;height:9px;width:22px;border:0;background:transparent;padding:0;cursor:pointer;display:flex;align-items:center}
+.rail button i{display:block;height:2px;width:9px;border-radius:2px;background:var(--line);transition:width .15s,background .15s}
+.rail button:hover i,.rail button:focus-visible i{width:15px;background:var(--muted)}
+.rail button.on i{width:18px;background:var(--ink)}
+.railTip{position:absolute;left:34px;z-index:6;width:min(360px,calc(100% - 60px));background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.18);padding:10px 12px;pointer-events:none}
+.railTip b{display:block;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px}
+.railTip p{margin:0;font-size:12.5px;line-height:1.55;color:var(--soft);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.tobottom{position:absolute;left:50%;transform:translateX(-50%);z-index:4;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--ink);display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.14);animation:tbIn .18s ease-out}
+.tobottom:hover{border-color:var(--clay-soft);color:var(--clay)}
+.tobottom .n{position:absolute;top:-6px;right:-8px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--clay);color:#fff;font:600 10.5px/16px var(--sans);text-align:center}
+@keyframes tbIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.cs-btn{position:absolute;top:10px;right:12px;z-index:4;width:30px;height:30px;border-radius:8px;border:1px solid transparent;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer}
+.cs-btn:hover,.cs-btn:focus-visible{background:var(--sunk);color:var(--ink)}
+.cs{position:absolute;top:8px;right:12px;left:auto;width:min(440px,calc(100% - 24px));z-index:7;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 32px rgba(0,0,0,.18);overflow:hidden}
+.cs-in{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);color:var(--muted)}
+.cs-in input{flex:1;min-width:0;border:0;background:transparent;font:14px var(--sans);color:var(--ink);outline:none}
+.cs-x{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:6px;font:11px var(--sans);padding:1px 6px;cursor:pointer}
+.cs-list{max-height:min(420px,60vh);overflow:auto}
+.cs-r{display:block;width:100%;text-align:left;border:0;background:transparent;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line)}
+.cs-r:last-child{border-bottom:0}
+.cs-r.sel,.cs-r:hover{background:var(--sunk)}
+.cs-r .m{display:flex;gap:8px;font-size:11.5px;color:var(--muted);margin-bottom:2px}
+.cs-r .m .who{color:var(--clay)}
+.cs-r .s{font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cs-r mark{background:var(--clay-wash);color:var(--clay);border-radius:3px;padding:0 1px}
+.cs-empty{padding:12px;font-size:12.5px;color:var(--muted)}
+.msg.flash{animation:msgFlash 1.6s ease-out}
+@keyframes msgFlash{0%,30%{background:var(--clay-wash);box-shadow:0 0 0 6px var(--clay-wash);border-radius:10px}100%{background:transparent;box-shadow:0 0 0 6px transparent}}
+/* 窄窗口也不叠：左边留给轮次条（34px），右边留给搜索和「回到最新」（48px），聊天卡片只在中间 */
+.stream{padding-left:max(40px,env(safe-area-inset-left,0px));padding-right:52px}
+.tobottom{left:auto;right:10px;transform:none}
+@media (max-width:640px){
+  .stream{padding-left:16px;padding-right:44px}
+  .rail{left:3px;width:8px;transition:width .15s}
+  .rail button{width:8px}
+  .rail button i,.rail button:hover i,.rail button.on i{width:2px}
+  .rail:hover,.rail:focus-within{width:24px;background:var(--surface);border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+  .rail:hover button,.rail:focus-within button{width:22px}
+  .rail:hover button i,.rail:focus-within button i{width:9px}.rail:hover button.on i,.rail:focus-within button.on i{width:18px}
+  .cs-btn{right:6px}.tobottom{right:5px}
+}@media (prefers-reduced-motion:reduce){.tobottom{animation:none}.msg.flash{animation:none;outline:2px solid var(--clay-soft);outline-offset:4px}.rail button i{transition:none}}html[data-page-active="false"] *,html[data-page-active="false"] *::before,html[data-page-active="false"] *::after{animation-play-state:paused!important}
+</style>
+
+<div class="app todayOn noanim" id="app">
+  <aside class="side">
+    <div class="top">
+      <div class="brand">
+        <span class="wave" id="wave" data-state="idle" role="img" aria-label="值守中"><svg width="24" height="18" viewBox="0 0 24 18" aria-hidden="true"><g class="amp"><g class="flow"><path d="M-24 9c2-4 4-4 6 0s4 4 6 0 4-4 6 0 4 4 6 0 4-4 6 0 4 4 6 0 4-4 6 0 4 4 6 0 4-4 6 0 4 4 6 0"/></g></g></svg></span>
+        <span id="brandName">秘书</span>
+      </div>
+      <button class="ib col" id="collapse" aria-label="收起侧栏"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button>
+    </div>
+    <div>
+      <button class="navb" aria-current="true" id="navChat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg><span class="lbl">对话</span></button>
+    </div>
+    <!-- 软件列表：叫到眼前 / 再点最小化；最后一行“添加软件”。自己滚动，夹在“对话”和底部按钮之间 -->
+    <div class="apps" id="apps" role="list" aria-label="软件"></div>
+    <div class="bottom">
+      <button class="navb" id="openToday" aria-pressed="true" aria-controls="today"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg><span class="lbl">今天</span></button>
+      <button class="navb" id="openSet" aria-controls="sheet"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span class="lbl">设置</span></button>
+    </div>
+  </aside>
+
+  <section class="chat" aria-label="对话">
+    <div class="stream" id="stream"><div class="in" id="streamIn"></div></div>
+    <nav class="rail" id="rail" aria-label="按轮次跳转"></nav>
+    <div class="railTip" id="railTip" hidden></div>
+    <button class="cs-btn" id="csOpen" title="搜聊天记录（Ctrl+F）" aria-label="搜聊天记录"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg></button>
+    <div class="cs" id="cs" hidden role="dialog" aria-label="搜聊天记录">
+      <div class="cs-in"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><input id="csQ" placeholder="搜聊天记录，比如一个人的名字" aria-label="搜聊天记录" autocomplete="off"><button class="cs-x" id="csX" aria-label="关闭">Esc</button></div>
+      <div class="cs-list" id="csList" role="listbox"></div>
+    </div>
+    <button class="tobottom" id="toBottom" hidden aria-label="回到最新"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg><span class="n" id="toBottomN" hidden></span></button>
+    <div class="composer">
+      <div class="sugs" id="sugs">
+        <button class="sug" data-fill="我今天答应过谁什么？">我今天答应过谁什么？</button>
+        <button class="sug" data-fill="给文件传输助手发消息：测试一下">给文件传输助手发消息</button>
+      </div>
+      <form class="box" id="form">
+        <textarea id="ta" rows="1" placeholder="让秘书回复谁、给谁发消息，或者问问今天的事" aria-label="给秘书的话"></textarea>
+        <div class="row"><span id="busy">会先给你确认，才会发出去</span><button class="send" type="submit" aria-label="发送"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button></div>
+      </form>
+    </div>
+
+    <!-- 设置：渐进式披露（开关的 data-key 对应 config.json） -->
+    <div class="sheet" id="sheet" role="dialog" aria-label="设置" inert>
+      <div class="in">
+        <div class="page" data-page="root">
+          <h1>设置</h1>
+          <div class="group">
+            <div class="it"><span class="l">名字</span><input class="nm" id="nm" value="秘书" maxlength="8" aria-label="名字"></div>
+            <div class="it"><span class="l">值守（自动读取）<div class="foot">秘书开着时在后台读已接入的软件；托盘里的「暂停读取」只是临时暂停</div></span><button class="sw" role="switch" aria-checked="true" aria-label="值守（自动读取）" data-key="watch"></button></div>
+          </div>
+          <div class="group">
+            <button class="it" data-go="acct"><span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></span><span class="l">账号</span><span class="v" id="vAcct"></span><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+            <button class="it" data-go="store"><span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 9h16l-1 11H5zM8 9V7a4 4 0 0 1 8 0v2"/></svg></span><span class="l">插件商城</span><span class="v" id="vStore"></span><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+          </div>
+          <div class="group">
+            <button class="it" data-go="sources"><span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg></span><span class="l">来源</span><span class="v" id="vSrc">微信</span><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+            <button class="it" data-go="can"><span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6z"/></svg></span><span class="l">秘书可以做的事</span><span class="v">发消息前确认</span><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+            <button class="it" data-go="look"><span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 12c2.5-4 4.5-4 6 0s3.5 4 6 0 3.5-4 6 0"/></svg></span><span class="l">提醒与外观</span><span class="v" id="vLook">跟随系统</span><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+            <button class="it" data-go="boot"><span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span><span class="l">开机</span><span class="v" id="vBoot"></span><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+            <button class="it" data-go="remind"><span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"/></svg></span><span class="l">提醒</span><span class="v" id="vRem"></span><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+            <button class="it" data-go="memory"><span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 4a6 6 0 0 0-6 6c0 2.2 1.2 3.6 2.5 4.6.6.5 1 1.2 1 2V18h5v-1.4c0-.8.4-1.5 1-2 1.3-1 2.5-2.4 2.5-4.6a6 6 0 0 0-6-6zM10 21h4"/></svg></span><span class="l">记忆</span><span class="v" id="vMem"></span><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+            <button class="it" data-go="ai"><span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><span class="l">AI 与隐私</span><span class="v">只存本机</span><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+            <button class="it" data-go="about"><span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/></svg></span><span class="l">关于</span><span class="v" id="vAbout"></span><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+          </div>
+        </div>
+
+        <div class="page" data-page="sources" hidden>
+          <button class="back" data-go="root"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>设置</button>
+          <h1>来源</h1>
+          <div class="group">
+            <div id="srcList"></div>
+          </div>
+        </div>
+
+        <div class="page" data-page="can" hidden>
+          <button class="back" data-go="root"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>设置</button>
+          <h1>秘书可以做的事</h1>
+          <div class="group">
+            <div class="it"><span class="l">替你发消息和文件</span><button class="sw" role="switch" aria-checked="false" aria-label="替你发消息和文件" data-key="send_messages"></button></div>
+            <div class="it"><span class="l">发之前先给你确认</span><span class="v">一直开着</span></div>
+          </div>
+          <h2 class="gh" style="font-size:13px;font-weight:600;margin:20px 4px 4px;opacity:.8">发送</h2>
+          <div class="group">
+            <div class="it"><span class="l">永远不借鼠标<div class="foot">只用键盘把字放进微信；放不进去就不发，你点「重试」</div></span><button class="sw" role="switch" aria-checked="false" aria-label="永远不借鼠标" data-key="no_mouse"></button></div>
+            <div class="it"><span class="l">等我离开电脑 1 分钟再发<div class="foot">关着：你停手 2 秒就发；卡片上随时能点「立即发」</div></span><button class="sw" role="switch" aria-checked="false" aria-label="等我离开电脑 1 分钟再发" data-key="send_away"></button></div>
+            <div class="it"><span class="l">暂停发送<div class="foot">开着时秘书一条都不发，卡片照常出</div></span><button class="sw" role="switch" aria-checked="false" aria-label="暂停发送" data-key="send_pause"></button></div>
+          </div>
+          <div class="group">
+            <div class="it"><span class="l">点开有未读的会话</span><button class="sw" role="switch" aria-checked="true" aria-label="点开有未读的会话" data-key="click_sessions"></button></div>
+            <div class="it"><span class="l">往上翻聊天记录</span><button class="sw" role="switch" aria-checked="true" aria-label="往上翻聊天记录" data-key="scroll"></button></div>
+          </div>
+          <div class="group">
+            <div class="it"><span class="l">文字交给 Claude 整理</span><button class="sw" role="switch" aria-checked="true" aria-label="文字交给 Claude 整理" data-key="cloud_text"></button></div>
+            <div class="it"><span class="l">图片交给 Claude 看</span><button class="sw" role="switch" aria-checked="true" aria-label="图片交给 Claude 看" data-key="cloud_images"></button></div>
+          </div>
+        </div>
+
+        <div class="page" data-page="look" hidden>
+          <button class="back" data-go="root"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>设置</button>
+          <h1>提醒与外观</h1>
+          <div class="group">
+            <div class="it"><span class="l">外观</span><div class="seg" id="themeSeg" role="group" aria-label="外观"><button aria-pressed="true" data-t="">跟随系统</button><button aria-pressed="false" data-t="light">浅色</button><button aria-pressed="false" data-t="dark">深色</button></div></div>
+          </div>
+          <div class="group">
+
+            <div class="it"><span class="l">借用微信时的边框<div class="foot">替你发消息、微信在最前面的那几秒，微信外面亮一圈</div></span><button class="sw" role="switch" aria-checked="true" aria-label="借用微信时的边框" data-key="border"></button></div>
+            <div class="it"><span class="l">整理今天清单</span><button class="sw" role="switch" aria-checked="true" aria-label="整理今天清单" data-key="today_list"></button></div>
+          </div>
+          <div class="group">
+            <div class="it"><span class="l">“叫微信过来”的快捷键<div class="foot">例如 Ctrl+Alt+Shift+W；回车生效</div></span><input class="nm" id="hk" value="Ctrl+Alt+Shift+W" maxlength="24" aria-label="叫微信过来的快捷键" style="width:11em"></div>
+          </div>
+        </div>
+
+        <div class="page" data-page="boot" hidden>
+          <button class="back" data-go="root"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>设置</button>
+          <h1>开机</h1>
+          <div class="group">
+            <div class="it"><span class="l">开机自动启动<div class="foot">开机后自动打开秘书（只在托盘和边缘线），只对你这个账户生效</div></span><button class="sw" role="switch" aria-checked="false" aria-label="开机自动启动" data-key="autostart"></button></div>
+
+
+
+          </div>
+        </div>
+
+        <div class="page" data-page="remind" hidden>
+          <button class="back" data-go="root"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>设置</button>
+          <h1>提醒</h1>
+          <p class="foot" style="margin-top:-8px">到期、你答应别人的事、有人等你回复时，秘书会在屏幕边的线上划一道波，重要的再滑出一句话，小浮窗里能选「好的 / 稍后 / 不用再提醒」。只在这台电脑上提醒，从不替你往外发。</p>
+          <div class="group">
+            <div class="it"><span class="l">主动提醒<div class="foot">勿扰开着时不提醒</div></span><button class="sw" role="switch" aria-checked="true" aria-label="主动提醒" data-key="proactive"></button></div>
+            <div class="it"><span class="l">早上简报<div class="foot">每天一张：今天要紧的事和接下来几天</div></span><input class="nm tm" id="remBrief" type="time" aria-label="早上简报时间"></div>
+            <div class="it"><span class="l">安静时段<div class="foot">这段时间不提醒，结束后再提</div></span><span class="tmr"><input class="nm tm" id="remQf" type="time" aria-label="安静时段开始">–<input class="nm tm" id="remQt" type="time" aria-label="安静时段结束"></span></div>
+            <div class="it"><span class="l">等回复多久提醒<div class="foot">只针对「要你回」里的事</div></span><div class="seg" id="remReply" role="group" aria-label="等回复多久提醒"><button data-h="2">2 小时</button><button data-h="4">4 小时</button><button data-h="8">8 小时</button></div></div>
+<div class="it"><span class="l">等别人多久提醒你催<div class="foot">只针对「你在等谁」里的事</div></span><div class="seg" id="remWait" role="group" aria-label="等别人多久提醒你催"><button data-d="1">1 天</button><button data-d="2">2 天</button><button data-d="3">3 天</button></div></div>
+          </div>
+          <h2 class="gh" style="font-size:13px;font-weight:600;margin:20px 4px 4px;opacity:.8">秘书可以自己做的事</h2>
+          <p class="foot">「直接做」只用于提醒你自己的事。发给别人、文件、钱、密码登录、删除、接受邀请，永远每条都要你点。</p>
+          <div class="group">
+            <div class="it"><span class="l">提醒我自己<div class="foot">别人叫你做的、你答应的事，到点提醒你</div></span><div class="seg" data-rule="self_remind" role="group" aria-label="提醒我自己"><button data-v="do">直接做</button><button data-v="ask">先问我</button><button data-v="tell">只告诉我</button></div></div>
+            <div class="it"><span class="l">加到「接下来」<div class="foot">约好的事（开会、见面）放进接下来，提前 10 分钟提醒</div></span><div class="seg" data-rule="add_next" role="group" aria-label="加到「接下来」"><button data-v="do">直接做</button><button data-v="ask">先问我</button><button data-v="tell">只告诉我</button></div></div>
+            <div class="it"><span class="l">到点看对方回没回<div class="foot">只是看一眼；要催对方还会再问你</div></span><div class="seg" data-rule="chase_reply" role="group" aria-label="到点看对方回没回"><button data-v="do">直接做</button><button data-v="ask">先问我</button><button data-v="tell">只告诉我</button></div></div>
+            <div class="it"><span class="l">替我给别人发提醒<div class="foot">发给别人的，每一条都要你点（改不了）</div></span><div class="seg" data-rule="remind_other" role="group" aria-label="替我给别人发提醒"><button data-v="ask">先问我</button><button data-v="tell">只告诉我</button></div></div>
+            <div class="it"><span class="l">回复别人<div class="foot">发给别人的，每一条都要你点（改不了）</div></span><div class="seg" data-rule="reply_other" role="group" aria-label="回复别人"><button data-v="ask">先问我</button><button data-v="tell">只告诉我</button></div></div>
+          </div>
+        </div>
+
+        <div class="page" data-page="memory" hidden>
+          <button class="back" data-go="root"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>设置</button>
+          <h1>记忆</h1>
+          <p class="foot" style="margin-top:-8px">秘书从聊天里记下的人、答应的事、你的偏好和定下的事。每条都能看出处、改、删；只存在这台电脑，已加密。</p>
+          <div class="group">
+            <div class="it"><span class="l">记住长期记忆<div class="foot">关掉后不再记新的；已有的照样能用、能改、能删</div></span><button class="sw" role="switch" aria-checked="true" aria-label="记住长期记忆" data-key="long_memory"></button></div>
+            <div class="it memadd"><input id="memAdd" maxlength="120" placeholder="记住…（比如：开会别约周五下午）" aria-label="让秘书记住一件事"><button class="mini" id="memAddBtn">记住</button></div>
+          </div>
+          <div class="memsearch"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg><input id="memQ" type="search" placeholder="搜索记忆" aria-label="搜索记忆"></div>
+          <div id="peopleSec"></div>
+          <div id="filesSec"></div>
+          <div id="memConf"></div>
+          <div id="memPend"></div>
+          <div id="memGroups"></div>
+          <div id="memUsed"></div>
+          <div id="memArch"></div>
+          <p class="foot" id="memFoot"></p>
+        </div>
+        <div class="page" data-page="acct" hidden>
+          <button class="back" data-go="root"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>设置</button>
+          <h1>账号</h1>
+          <div id="acctBody"><p class="foot">正在连接…</p></div>
+        </div>
+        <div class="page" data-page="store" hidden>
+          <button class="back" data-go="root"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>设置</button>
+          <h1>插件商城</h1>
+          <p class="foot" style="margin-top:-8px">插件告诉秘书怎么读某个软件。每个插件都经过签名和审核，装之前会列出它能做什么；插件永远不能自己替你发消息。</p>
+          <div id="storeBody"><p class="foot">正在加载…</p></div>
+        </div>
+        <div class="page" data-page="about" hidden>
+          <button class="back" data-go="root"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>设置</button>
+          <h1>关于</h1>
+          <div id="aboutBody"><p class="foot">正在检查…</p></div>
+          <details class="group" id="health" style="margin-top:12px"><summary class="it" style="cursor:pointer;list-style:none"><span class="l">过去 24 小时<div class="foot" id="healthLine">正在统计…</div></span></summary><div id="healthWhy" style="padding:4px 12px 10px"></div></details>
+          <div class="group" style="margin-top:12px"><div class="it"><span class="l">卸载秘书<div class="foot">删掉程序，并把它改过的设置（比如开机自动启动）原样还原</div></span><button class="mini" id="unOpen">卸载…</button></div></div>
+          <div class="confirm" id="unCard" hidden role="dialog" aria-label="卸载秘书" style="margin-top:10px"><div class="h">卸载秘书</div><div class="preview">会删除：秘书程序、它的浏览器缓存和临时文件、登录信息和保存在秘书里的 AI 密钥；开机自动启动等改过的设置会还原。<b>删除以后不能恢复。</b><br>「保留我的数据」会先把消息、聊天、事项、记忆、截图打包放到桌面（不含任何密钥）。</div><div class="acts"><button class="pri" data-unmode="KeepData">保留我的数据</button><button class="sec" data-unmode="DeleteAll">全部删除</button><button class="q" data-unmode="">取消</button></div></div>
+        </div>
+        <div class="page" data-page="ai" hidden>
+          <button class="back" data-go="root"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>设置</button>
+          <h1>AI 与隐私</h1>
+          <div class="group">
+            <div class="it"><span class="l">AI 从哪里来</span><div class="seg" id="aiSeg" role="group" aria-label="AI 来源"><button aria-pressed="false" data-ai="account">我们的账号</button><button aria-pressed="true" data-ai="local">自带密钥</button></div></div>
+          </div>
+          <div id="ownKey"></div>
+          <div class="group">
+            <div class="it"><span class="l">数据只存在这台电脑</span><span class="v">已加密</span></div>
+            <div class="it"><span class="l">记下图片和文件<div class="foot">本机有原件的只记位置；没有的截图加密存下</div></span><button class="sw" role="switch" aria-checked="true" aria-label="记下图片和文件" data-key="save_attachments"></button></div>
+            <div class="it"><span class="l">保存的图片<div class="foot" id="attInfo">—</div></span><button class="mini q" id="attClear">清除</button></div>
+            <div class="it" id="attAsk" hidden><span class="l">截图存下的图片会删掉，文件位置记录保留</span><button class="mini q" id="attNo">取消</button><button class="mini" id="attYes">清除</button></div>
+            <button class="it" id="wipe"><span class="l danger">清除本机数据</span></button>
+            <div class="it" id="wipeAsk" hidden><span class="l">记过的消息、清单和对话都会删掉</span><button class="mini q" id="wipeNo">取消</button><button class="mini" id="wipeYes">清除</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="pop" id="appMenu" role="menu" hidden><button role="menuitem" data-m="remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>移除</button></div>
+<div class="modal" id="rmModal" hidden><div class="confirm" role="dialog" aria-label="移除软件"><div class="h">移除「<span id="rmName"></span>」？</div>
+  <ul class="rmlist"><li>秘书不再读这个软件</li><li>它的适配和设置会删掉</li><li>已经读到的消息默认保留</li></ul>
+  <label class="chk"><input type="checkbox" id="rmPurge"> 同时删掉从它读到的内容（消息、截图、整理出的事项）</label>
+  <div class="acts"><button class="pri" id="rmYes">移除</button><button class="sec" id="rmNo">取消</button></div></div></div>
+<div class="modal" id="consentModal" hidden><div class="confirm" role="dialog" aria-label="安装插件" id="consentBox"></div></div>
+<div class="modal" id="pickModal" hidden><div class="picker" role="dialog" aria-label="添加软件">
+  <div class="pkh"><b>添加软件</b><button class="ib" id="pkClose" aria-label="关闭"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+  <div class="memsearch"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg><input id="pkQ" type="search" placeholder="搜索软件名或程序名" aria-label="搜索软件" autocomplete="off"></div>
+  <div class="pklist" id="pkList" role="listbox"></div>
+  <div class="pkfoot"><button class="mini" id="pkBrowse">浏览…</button><button class="mini" id="pkPoint">点一下窗口</button><span class="foot" id="pkHint"></span></div>
+</div></div>
+<div class="toast" id="toast" role="status" hidden><span></span><button class="lk">撤销</button></div>
+<aside class="today" id="today" aria-label="今天"><div class="tin">
+    <h2>今天 <small id="todayDate"></small><button class="ib tclose" id="todayClose" title="收起今天" aria-label="收起今天"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M14.5 4.5v15M8.5 10l2 2-2 2"/></svg></button></h2>
+    <div class="grp" data-g="today"><h3>今天要做 <span>0</span></h3><div class="cards"></div></div>
+    <div class="grp" data-g="soon"><h3>快到期 <span>0</span></h3><div class="cards"></div></div>
+    <div class="grp" data-g="overdue"><h3>已逾期 <span>0</span></h3><div class="cards"></div></div>
+    <div class="grp" data-g="undated"><h3>没有日期 <span>0</span></h3><div class="cards"></div></div>
+<div class="grp nx" id="actGrp"><h3>在办的事 <span id="actN">0</span></h3><div id="actList"><p class="nxempty">现在没有在办的事</p></div></div><div id="nextDays"><p class="nxempty">接下来几天没有安排</p></div></div>
+  </div></aside>
+</div>
+
+<script src="lifecycle.js"></script>
+<script>
+(function(){
+  // 页面只负责显示和收集点击；所有数据、AI、发送都在本机宿主进程里，通过 WebView2 消息通信
+  function $(id){return document.getElementById(id)}
+  var app=$('app'),stream=$('stream'),inEl=$('streamIn'),ta=$('ta'),today=$('today'),wave=$('wave');
+  var OK='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>';
+  var NO='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M6 12h12"/></svg>';
+  var FILE='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg>';
+  function arr(x){return Array.isArray(x)?x:(x&&typeof x==='object'&&Object.keys(x).length?[x]:[])}   // 只有一个元素的数组可能被存成了单个对象
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+  function send(m){window.chrome&&window.chrome.webview&&window.chrome.webview.postMessage(m)}
+  var life=SecretaryLife({visible:true});
+  function step(s){return '<div class="step'+(s.ok?'':' mute')+'">'+(s.ok?OK:NO)+esc(s.text)+'</div>'}
+
+  // —— 侧栏、今天、设置层（交互与设计稿一致） ——
+  $('collapse').onclick=function(){app.classList.toggle('collapsed');this.setAttribute('aria-label',app.classList.contains('collapsed')?'展开侧栏':'收起侧栏')};
+  var tBtn=$('openToday');
+  $('todayClose').onclick=function(){setToday(false)};
+  document.addEventListener('click',function(e){var b=e.target.closest('[data-jump]');if(!b)return;var c=b.closest('[data-id]');b.disabled=true;b.textContent='正在打开…';send({type:'jump',id:c.dataset.id})});
+  /* 接下来：按天分组；每条：时间、事、谁、出处；每天最多两条秘书建议（好 / 不用） */
+  var KIND={promise:'你答应过',theirs:'别人答应你',due:'到期',reply:'要你回',waiting:'你在等谁'};
+  function renderActivity(list){list=arr(list);var el=$('actList');$('actN').textContent=list.filter(function(a){return a.active}).length;if(!list.length){el.innerHTML='<p class="nxempty">现在没有在办的事</p>';return}
+  el.innerHTML=list.map(function(a){var acts=a.active&&a.state!=='进行中'?(a.canCancel?'<button class="mini q" data-schedcancel="'+esc(a.item)+'">取消</button>':'')+(a.canStop?'<button class="mini q" data-watchstop="'+esc(a.item)+'">不再盯</button>':'')+'<button class="mini q" data-actedit="'+esc(a.item)+'">改</button>':'';var src=a.state+' · '+(a.title||'')+(a.chat&&!a.chatInWhat?' · '+a.chat:'');return '<div class="tc'+(a.active?'':' gone')+'"><div class="m"><span class="s">'+esc(src)+'</span><span class="t">'+esc(a.time||'')+'</span></div><p>'+esc(a.what)+'</p>'+(a.short?'<p class="nx">'+esc(a.short)+'</p>':'')+(acts?'<div class="a">'+acts+'</div>':'')+'</div>'}).join('')}
+function renderUpcoming(days){var el=$('nextDays');if(!days||!days.length){el.innerHTML='<p class="nxempty">接下来几天没有安排</p>';return}
+    el.innerHTML=days.map(function(d){return '<div class="nxd"><div class="dl">'+esc(d.label)+'</div>'+d.items.map(function(i){
+      return '<div class="nxi"><span class="t'+(i.time?' k':'')+'">'+(i.time||'全天')+'</span><span class="w">'+esc(i.what)+'</span><span class="m"><span class="tag">'+(KIND[i.kind]||'')+'</span>'+(i.who?esc(i.who)+' · ':'')+'出处 '+esc(i.src)+(i.conv&&i.conv!==i.who?' · '+esc(i.conv):'')+'</span></div>'}).join('')+
+      arr(d.tips).map(function(t){return '<div class="tip" data-tip="'+esc(t.id)+'"><div class="tt"><b>秘书建议</b>'+esc(t.text)+'</div><div class="ta"><button class="mini" data-y="1">好</button><button class="mini q" data-y="0">不用</button></div></div>'}).join('')+'</div>'}).join('')}
+  $('nextDays').addEventListener('click',function(e){var b=e.target.closest('[data-y]');if(!b)return;var t=b.closest('[data-tip]');t.style.opacity='.4';send({type:'tip',id:t.dataset.tip,yes:b.dataset.y==='1'})});
+  document.addEventListener('click',function(e){var b=e.target.closest('[data-siterm]');if(b)send({type:'edgeSite',op:'remove',site:b.dataset.siterm})});document.addEventListener('keydown',function(e){if(e.target&&e.target.id==='siteAdd'&&e.key==='Enter'&&e.target.value.trim()){send({type:'edgeSite',op:'add',site:e.target.value.trim()});e.target.value=''}});
+  document.querySelectorAll('.seg[data-rule] button').forEach(function(b){b.addEventListener('click',function(){send({type:'setRule',key:b.parentNode.dataset.rule,value:b.dataset.v})})});
+  [['remBrief','remind_brief'],['remQf','remind_quiet_from'],['remQt','remind_quiet_to']].forEach(function(p){$(p[0]).addEventListener('change',function(){if(this.value)send({type:'set',key:p[1],value:this.value})})});
+  $('remReply').addEventListener('click',function(e){var b=e.target.closest('[data-h]');if(b)send({type:'set',key:'remind_reply_hours',value:+b.dataset.h})});
+  $('remWait').addEventListener('click',function(e){var b=e.target.closest('[data-d]');if(b)send({type:'set',key:'remind_wait_days',value:+b.dataset.d})});
+  function setToday(on){app.classList.toggle('todayOn',on);tBtn.setAttribute('aria-pressed',on);today.inert=!on}
+  setToday(innerWidth>1060);   // 窄窗口（默认停靠）“今天”收起；最大化/拉宽到 1060 以上自动展开成三栏（与第三版设计一致），跨过这个宽度时跟着变
+var wideNow=innerWidth>1060;addEventListener('resize',function(){var w=innerWidth>1060;if(w!==wideNow){wideNow=w;setToday(w)}});
+  life.frame(function(){life.frame(function(){app.classList.remove('noanim')})});
+  tBtn.onclick=function(){setToday(!app.classList.contains('todayOn'))};
+  var sheet=$('sheet'),setBtn=$('openSet');
+  function go(p){if(p==='about')send({type:'health'});document.querySelectorAll('[data-page]').forEach(function(x){x.hidden=x.dataset.page!==p;x.classList.remove('in-f','in-b');if(!x.hidden){void x.offsetWidth;x.classList.add(p==='root'?'in-b':'in-f')}});sheet.scrollTop=0}   // 一次只显示一页：点进子页从右滑入，返回从左滑入（系统“减少动画”时不动）
+  function openSet(){go('root');sheet.classList.add('on');sheet.inert=false;setBtn.setAttribute('aria-current','true');$('navChat').removeAttribute('aria-current')}
+  function closeSet(){sheet.classList.remove('on');sheet.inert=true;setBtn.removeAttribute('aria-current');$('navChat').setAttribute('aria-current','true')}
+  setBtn.onclick=function(){sheet.classList.contains('on')?closeSet():openSet()};
+  $('navChat').onclick=closeSet;
+  /* ---------- 侧栏软件列表 ---------- */
+  var appsEl=$('apps'),APPS=[];
+  function tileChar(n){n=String(n||'?').trim();return esc(n.charAt(0).toUpperCase())}
+  function renderApps(list){
+    APPS=list||[];
+    appsEl.innerHTML=APPS.map(function(a){
+      var hint=!a.running?'没打开':(a.here?'最小化':'叫过来');var ad=a.adapt==='adapting'?('正在适配'+(a.adaptStep&&a.adaptStep!=='准备'?' · '+a.adaptStep:'')):a.adapt==='stale'?'界面变了，重新适配':a.adapt==='failed'?'适配失败':a.adapt==='ready'?(a.adaptPartial?'列表已适配':'已适配版面'):(a.adapted?'':'还没适配读取');if(ad)hint=(a.adapt==='adapting'?ad:hint+' · '+ad);
+      var tip=a.name+(a.running?(a.here?'：在你眼前，点一下最小化':'：点一下叫到眼前'):'：没打开，点一下打开')+(a.adapted?'':'（还没适配读取）');
+      return '<button class="navb'+(a.running?'':' off')+(a.adapt==='adapting'?' adapting':'')+'" role="listitem" data-app="'+esc(a.id)+'" aria-pressed="'+(a.here?'true':'false')+'" title="'+esc(tip)+'"><span class="tile" aria-hidden="true">'+tileChar(a.name)+'</span><span class="lbl">'+esc(a.name)+'</span><span class="hint">'+esc(hint)+'</span><span class="more" data-more="'+esc(a.id)+'" role="button" aria-label="更多" title="更多"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg></span></button>';
+    }).join('')+'<button class="navb add" id="addApp" role="listitem" title="添加软件"><span class="tile" aria-hidden="true">+</span><span class="lbl">添加软件</span></button>';
+    fadeApps();renderSrc();
+  }
+  // 每个读取来源这会儿怎么样（值守每轮写一次）：关着 / 正常 / 等着（原因）/ 出错 / 歇一会
+  function srcSt(id){var x=(SET.sources||{})[id];if(!x)return '';if(!x.enabled)return ' · 关着';if(x.state==='backoff'){var u=x.until?new Date(x.until):null;return ' · 连着几次没读成'+(x.slow_last?'（太慢）':'')+'，'+(u&&!isNaN(u)?u.getHours()+':'+('0'+u.getMinutes()).slice(-2)+' 自动再试':'稍后自动再试')}if(x.state==='error')return ' · 刚才没读成'+(x.slow_last?'（太慢）':'')+'，下一轮自动再试';if(x.state==='waiting')return x.detail?' · '+x.detail:' · 等着读';if(x.detail)return ' · '+x.detail;if(x.state==='ok')return ' · 正常';return ''}
+  function renderSrc(){var el=$('srcList');if(!el)return;el.innerHTML=APPS.map(function(a){var st=a.adapt==='adapting'?'正在适配':a.adapt==='ready'||a.adapted?'秘书在读':a.adapt==='failed'?'适配失败':'还没适配读取';
+    return '<div class="it" data-src="'+esc(a.id)+'"><span class="l">'+esc(a.name)+'<div class="foot">'+st+srcSt(a.id==='wechat'?'wechat':'adapters')+'</div></span>'+(a.id==='wechat'?'<button class="sw" role="switch" aria-checked="'+(SET.src_wechat!==false)+'" aria-label="读取微信" data-key="src_wechat"></button>':'')+'<button class="mini q" data-rm="'+esc(a.id)+'">移除</button></div>'}).join('')+(SET.outlookInstalled?'<div class="it"><span class="l">Outlook 邮件<div class="foot">Outlook 开着时原地只读邮件列表和打开的邮件'+srcSt('outlook')+'</div></span><button class="sw" role="switch" aria-checked="'+(!!SET.src_outlook)+'" aria-label="读取 Outlook 邮件" data-key="src_outlook"></button></div>':'')+'<div class="it"><span class="l">桌面、文档、下载<div class="foot">只看连接以后的新文件；像密码、密钥的不读'+srcSt('folders')+'</div></span><button class="sw" role="switch" aria-checked="'+(!!SET.src_folders)+'" aria-label="读取新文件" data-key="src_folders"></button></div>'+(function(){var p=(SET.sources||{}).plugins;return p&&p.detail&&p.detail!=='没装插件'?'<div class="it"><span class="l">商店插件<div class="foot">装了插件的软件，用插件只读'+srcSt('plugins')+'</div></span></div>':''})()+'<div class="it"><span class="l">Edge 网页<div class="foot">只读下面这些网站，而且只读你正开着的那一页'+srcSt('edge')+'</div></span><button class="sw" role="switch" aria-checked="'+(!!SET.src_edge)+'" aria-label="读取 Edge 网页" data-key="src_edge"></button></div>'+'<div class="it" style="flex-wrap:wrap;gap:6px">'+arr(SET.edgeSites).map(function(s){return '<span class="tag" style="border:1px solid var(--line);border-radius:999px;padding:1px 8px;font-size:12px">'+esc(s)+' <button class="mini q" data-siterm="'+esc(s)+'" aria-label="移除 '+esc(s)+'">×</button></span>'}).join('')+'<input class="nm" id="siteAdd" placeholder="加一个网站，比如 example.com" aria-label="加一个网站" style="flex:1;min-width:160px"></div>'||'<div class="it"><span class="l foot">还没有接入软件。在侧栏点「添加软件」</span></div>'}
+  document.addEventListener('click',function(e){var b=e.target.closest('[data-rm]');if(b)askRemove(b.dataset.rm)});
+  function fadeApps(){var over=appsEl.scrollHeight>appsEl.clientHeight+1;appsEl.classList.toggle('fade-t',over&&appsEl.scrollTop>2);appsEl.classList.toggle('fade-b',over&&appsEl.scrollTop+appsEl.clientHeight<appsEl.scrollHeight-2)}
+  appsEl.addEventListener('contextmenu',function(e){var b=e.target.closest('[data-app]');if(!b)return;e.preventDefault();openAppMenu(b.dataset.app,null,e.clientX,e.clientY)});
+  /* 移除软件：… / 右键 → 菜单「移除」→ 确认卡（说明会发生什么，可选同时删掉读到的内容）→ 行收起 → 6 秒内可撤销 */
+  var menuApp=null;
+  function openAppMenu(id,anchor,x,y){menuApp=id;var m=$('appMenu');m.hidden=false;var r=anchor?anchor.getBoundingClientRect():{right:x,bottom:y,top:y};m.style.left=Math.min(innerWidth-m.offsetWidth-8,r.right-4)+'px';m.style.top=Math.min(innerHeight-m.offsetHeight-8,(anchor?r.bottom+4:r.top))+'px';m.querySelector('button').focus()}
+  function closeAppMenu(){$('appMenu').hidden=true}
+  document.addEventListener('click',function(e){if(!e.target.closest('#appMenu'))closeAppMenu()});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeAppMenu();$('rmModal').hidden=true}});
+  $('appMenu').addEventListener('click',function(e){var b=e.target.closest('[data-m]');if(!b)return;closeAppMenu();askRemove(menuApp)});
+  function askRemove(id){var a=APPS.find(function(x){return x.id===id});if(!a)return;var M=$('rmModal');M.dataset.id=id;$('rmName').textContent=a.name;$('rmPurge').checked=false;M.hidden=false;$('rmNo').focus()}
+  $('rmNo').onclick=function(){$('rmModal').hidden=true};
+  $('rmModal').addEventListener('click',function(e){if(e.target.id==='rmModal')$('rmModal').hidden=true});
+  $('rmYes').onclick=function(){var M=$('rmModal'),id=M.dataset.id,purge=$('rmPurge').checked;M.hidden=true;
+    document.querySelectorAll('[data-app="'+id+'"],[data-src="'+id+'"]').forEach(function(r){r.style.height=r.offsetHeight+'px';void r.offsetWidth;r.classList.add('leaving')});
+    setTimeout(function(){send({type:'removeApp',id:id,purge:purge})},220)};
+  var toastT;function toast(text,undo){var T=$('toast');T.querySelector('span').textContent=text;T.querySelector('button').hidden=!undo;T.hidden=false;void T.offsetWidth;T.classList.add('on');life.clearTimeout(toastT);toastT=life.timeout(function(){T.classList.remove('on');life.timeout(function(){T.hidden=true},250)},6000)}
+  $('toast').querySelector('button').onclick=function(){send({type:'undoRemove'});$('toast').classList.remove('on');life.timeout(function(){$('toast').hidden=true},250)};
+  appsEl.addEventListener('scroll',fadeApps);addEventListener('resize',fadeApps);
+  appsEl.addEventListener('click',function(e){
+    var mo=e.target.closest('[data-more]');if(mo){e.stopPropagation();openAppMenu(mo.dataset.more,mo);return}
+    var b=e.target.closest('[data-app]');if(b){send({type:'app',id:b.dataset.app});return}
+    if(e.target.closest('#addApp'))send({type:'openApps',q:''});
+  });
+  /* 添加软件：先选一个开着的软件，再用确认卡说明秘书能做什么、不能做什么 */
+  function addCard(html){var w=document.createElement('div');w.className='msg ai';w.innerHTML=html;$('streamIn').appendChild(w);w.scrollIntoView({block:'end',behavior:'smooth'});return w}
+  /* 选择器：搜索（名字或程序名）、正在运行（所有桌面）、电脑上的软件；已添加的灰显；↑↓ / Enter / Esc */
+  var PK={running:[],installed:null,q:'',sel:0,flat:[]};
+  var ST={running:'开着',minimized:'最小化了',tray:'在托盘里',installed:'没打开'};
+  function openPicker(d){if(sheet.classList.contains('on'))closeSet();PK.running=d.running||[];PK.installed=d.installed||null;PK.sel=0;$('pkQ').value=d.q||'';PK.q=(d.q||'').toLowerCase();$('pkHint').textContent='';$('pickModal').hidden=false;renderPicker();$('pkQ').focus()}
+  function closePicker(){$('pickModal').hidden=true}
+  function pkMatch(a){if(!PK.q)return true;return (a.name||'').toLowerCase().indexOf(PK.q)>=0||(a.proc||'').toLowerCase().indexOf(PK.q)>=0||(a.exe||'').toLowerCase().split('\\').pop().indexOf(PK.q)>=0}
+  function pkRow(a,i){var sub=(a.exe?a.exe.split('\\').pop():(a.aumid?'商店应用':''))+(ST[a.state]?' · '+ST[a.state]:'');
+    return '<button class="pkr'+(a.added?' done':'')+'" role="option" data-k="'+i+'"'+(a.added?' aria-disabled="true"':'')+'><span class="tile">'+tileChar(a.name)+'</span><span class="nm"><span>'+esc(a.name)+'</span><small>'+esc(sub)+'</small></span>'+(a.added?'<span class="tg">已添加</span>':'')+'</button>'}
+  function renderPicker(){
+    var r=PK.running.filter(pkMatch),seen={};r.forEach(function(a){if(a.proc)seen[a.proc.toLowerCase()]=1});
+    var ins=PK.installed?PK.installed.filter(function(a){return pkMatch(a)&&!(a.proc&&seen[a.proc.toLowerCase()])}):null;
+    PK.flat=r.concat(arr(ins));var h='',i=0;
+    h+='<div class="sec">正在运行</div>'+(r.length?r.map(function(a){return pkRow(a,i++)}).join(''):'<div class="pkempty">'+(PK.q?'没有开着的软件对得上':'没有别的软件开着')+'</div>');
+    h+='<div class="sec">电脑上的软件</div>'+(ins===null?'<div class="pkempty">正在查找电脑上装的软件…</div>':ins.length?ins.map(function(a){return pkRow(a,i++)}).join(''):'<div class="pkempty">没有对得上的。可以用下面的「浏览…」直接选程序</div>');
+    $('pkList').innerHTML=h;var en=PK.flat.map(function(a,k){return a.added?-1:k}).filter(function(k){return k>=0});if(en.indexOf(PK.sel)<0)PK.sel=en.length?en[0]:-1;pkMark()}
+  function pkMark(){[].forEach.call($('pkList').querySelectorAll('.pkr'),function(b){b.classList.toggle('sel',+b.dataset.k===PK.sel);if(+b.dataset.k===PK.sel)b.scrollIntoView({block:'nearest'})})}
+  function pkPick(a){if(!a||a.added)return;closePicker();var w=addCard('');confirmAdd(w,a)}
+  $('pkQ').addEventListener('input',function(){PK.q=this.value.trim().toLowerCase();PK.sel=0;renderPicker()});
+  $('pkQ').addEventListener('keydown',function(e){var en=PK.flat.map(function(a,k){return a.added?-1:k}).filter(function(k){return k>=0}),p=en.indexOf(PK.sel);
+    if(e.key==='ArrowDown'){e.preventDefault();if(en.length)PK.sel=en[Math.min(en.length-1,p+1)];pkMark()}else if(e.key==='ArrowUp'){e.preventDefault();if(en.length)PK.sel=en[Math.max(0,p-1)];pkMark()}
+    else if(e.key==='Enter'){e.preventDefault();pkPick(PK.flat[PK.sel])}else if(e.key==='Escape'){closePicker()}});
+  $('pkList').addEventListener('click',function(e){var b=e.target.closest('.pkr');if(b)pkPick(PK.flat[+b.dataset.k])});
+  $('pkClose').onclick=closePicker;$('pickModal').addEventListener('click',function(e){if(e.target.id==='pickModal')closePicker()});
+  $('pkBrowse').onclick=function(){send({type:'browseExe'})};
+  $('pkPoint').onclick=function(){$('pkHint').textContent='点一下要添加的软件窗口，Esc 取消';send({type:'pickWindow'})};
+  function showPicker(list){
+    if(sheet.classList.contains('on'))closeSet();
+    var w=addCard('<div class="confirm" data-confirm><div class="h">添加软件</div>'+(list.length?'<div class="pick">'+list.map(function(a,i){return '<button data-i="'+i+'"><span class="tile">'+tileChar(a.name)+'</span>'+esc(a.name)+'</button>'}).join('')+'</div>':'<p class="hint">现在没有别的软件开着窗口。先把要加的软件打开，再点一次“添加软件”。</p>')+'<div class="acts"><button class="sec" data-x>先不加</button></div></div>');
+    w.querySelector('[data-x]').onclick=function(){w.remove()};
+    [].forEach.call(w.querySelectorAll('.pick [data-i]'),function(b){b.onclick=function(){confirmAdd(w,list[+b.dataset.i])}});
+    var f=w.querySelector('.pick button');if(f)f.focus();
+  }
+  function confirmAdd(w,a,already){
+    w.innerHTML='<div class="confirm" data-confirm><div class="h">让秘书看 '+esc(a.name)+'？</div>'+
+      '<ul class="can"><li>可以：在侧栏点一下，把它叫到你眼前，再点一下最小化</li>'+
+      '<li>开始适配后：截一张图交给 Claude 认版面（只要区域位置，不记内容），之后在本机读；适配好之前不会假装在看</li>'+
+      '<li class="no">不会：替你在里面点、打字或发送（新适配的软件不开放发送）</li></ul>'+
+      '<div class="acts"><button class="pri" data-go>开始适配</button>'+(already?'':'<button class="sec" data-ok>只添加</button>')+'<button class="sec" data-x>先不'+(already?'':'加')+'</button></div></div>';
+    w.querySelector('[data-x]').onclick=function(){w.remove()};
+    var launch=a.state==='installed'||!a.proc;
+    var ok=w.querySelector('[data-ok]');if(ok)ok.onclick=function(){send({type:'addApp',proc:a.proc,name:a.name,exe:a.exe,aumid:a.aumid||'',launch:launch});w.remove()};
+    w.querySelector('[data-go]').onclick=function(){send(already?{type:'adapt',proc:a.proc,name:a.name}:{type:'addApp',proc:a.proc,name:a.name,exe:a.exe,aumid:a.aumid||'',launch:launch,adapt:true});w.remove()};
+    w.querySelector('[data-go]').focus();
+  }
+  function adaptCard(a){var w=addCard('');confirmAdd(w,a,true)}
+  sheet.addEventListener('click',function(e){var g=e.target.closest('[data-go]');if(g){go(g.dataset.go);if(g.dataset.go==='memory')send({type:'memList',q:$('memQ').value});if(g.dataset.go==='acct'||g.dataset.go==='ai')send({type:'acctView'});if(g.dataset.go==='ai')send({type:'aiPage'});if(g.dataset.go==='store')send({type:'storeView'});if(g.dataset.go==='about')send({type:'updCheck'})}});
+  /* ---------- 记忆页 ---------- */
+  var MEM=null,memOpen={};
+  var MT={person:'人',promise:'答应的事',preference:'偏好和规则',decision:'决定',fact:'事实和事件'};
+  function dshort(s){if(!s)return '';var d=new Date(s);return isNaN(d)?'':(d.getMonth()+1)+'-'+d.getDate()}
+  function memItem(m,arch){
+    var tags=[];if(m.dstatus==='superseded')tags.push('<span class="tag">已被取代</span>');else if(m.dstatus==='proposed')tags.push('<span class="tag">提议</span>');
+    if(m.status==='cooled')tags.push('<span class="tag">很久没用</span>');if(m.due)tags.push('<span class="tag c">截止 '+esc(m.due)+'</span>');if(m.sensitive)tags.push('<span class="tag">敏感</span>');if(m.srcDeleted)tags.push('<span class="tag">出处已删除</span>');
+    var meta=(m.evidence>1?'出现 '+m.evidence+' 次 · ':'')+(m.last?'最近 '+dshort(m.last):'')+(m.people&&m.people.length?' · '+esc(m.people.join('、')):'');
+    var txt=m.sensitive&&!memOpen[m.id]?'<button class="hide" data-act="reveal">敏感内容，点开查看</button>':'<div class="mt">'+esc(m.text)+'</div>';
+    var acts=arch?'<button class="lk" data-act="restore">恢复</button><button class="lk q" data-act="del">删</button>':'<button class="lk" data-act="src">出处</button><button class="lk" data-act="edit">改</button><button class="lk q" data-act="del">删</button>';
+    return '<div class="mem" data-id="'+esc(m.id)+'">'+txt+'<div class="mm">'+tags.join('')+'<span>'+meta+'</span></div><div class="ma">'+acts+'</div><div class="msrc" hidden></div></div>'}
+  function renderMem(d){
+    MEM=d;$('vMem').textContent=d.count?d.count+' 条':'';
+    $('memConf').innerHTML=arr(d.conflicts).map(function(c){return '<div class="mcard" data-cid="'+esc(c.id)+'"><div class="h">这条和以前记的不一样</div><div class="vs"><span>以前</span><span>'+esc(c.old)+'</span><span>现在</span><span>'+esc(c.text)+'</span></div><div class="acts"><button class="mini" data-c="replace">替换</button><button class="mini" data-c="both">两条都留</button><button class="mini q" data-c="ignore">忽略</button></div></div>'}).join('');
+    var p=d.pending||[];$('memPend').innerHTML=p.length?'<p class="memh"><b>还在观察</b>出现够多次、跨两天以上才会记下；也可以现在就记</p><div class="group">'+p.map(function(x){return '<div class="mem" data-key="'+esc(x.key)+'"><div class="mt">'+esc(x.text)+'</div><div class="mm"><span>'+MT[x.type]+' · 出现 '+x.evidence+' 次 · '+x.days+' 天</span></div><div class="ma"><button class="lk" data-p="accept">记下</button><button class="lk q" data-p="dismiss">不用记</button></div></div>'}).join('')+'</div>':'';
+    var g='';Object.keys(MT).forEach(function(k){var its=arr(d.items).filter(function(m){return m.type===k});if(!its.length)return;g+='<section><p class="memh"><b>'+MT[k]+'</b>'+its.length+'</p><div class="group">'+its.map(function(m){return memItem(m)}).join('')+'</div></section>'});
+    $('memGroups').innerHTML=g||'<div class="group"><div class="mempty">'+(d.q?'没有找到相关的记忆':'还没有长期记忆。秘书会从聊天里慢慢记，也可以在上面直接让它「记住…」')+'</div></div>';
+    var u=d.used||[];$('memUsed').innerHTML=u.length?'<p class="memh"><b>最近用到</b>最近几次回答参考了这些</p><div class="group">'+u.map(function(x){return '<div class="mem"><div class="mm"><span>'+esc(x.when)+'</span></div><div class="mt" style="font-size:13px">'+x.items.map(function(i){return esc(i)}).join('<br>')+'</div></div>'}).join('')+'</div>':'';
+    var a=d.archived||[];$('memArch').innerHTML=a.length?'<p class="memh"><b>已归档</b>很久没用到的，仍可以搜到和恢复</p><div class="group">'+a.map(function(m){return memItem(m,true)}).join('')+'</div>':'';
+    $('memFoot').textContent=d.foot||'';
+  }
+  function memSrc(id,items){var el=document.querySelector('.mem[data-id="'+id+'"] .msrc');if(!el)return;el.hidden=false;
+    el.innerHTML=(items&&items.length?items.map(function(s){return '<div class="quote"><div class="qm"><span>'+esc(s.kind)+(s.conv?' · '+esc(s.conv):'')+(s.who?' · '+esc(s.who):'')+(s.ts?' · '+esc(s.ts.replace('T',' ').slice(0,16)):'')+'</span></div>'+(s.text?'<div>'+esc(s.text)+'</div>':'')+'</div>'}).join(''):'<div class="foot">原始记录已经不在了（可能清除过本机数据）</div>')+'<button class="lk q" data-act="srcx" style="align-self:flex-start">收起出处</button>'}
+  $('memGroups').addEventListener('click',memClick);$('memArch').addEventListener('click',memClick);
+  function memClick(e){var b=e.target.closest('[data-act]');if(!b)return;var it=b.closest('.mem'),id=it.dataset.id,a=b.dataset.act;
+    if(a==='reveal'){memOpen[id]=1;renderMem(MEM)}
+    else if(a==='src')send({type:'memSrc',id:id});
+    else if(a==='srcx'){var s=it.querySelector('.msrc');s.hidden=true;s.innerHTML=''}
+    else if(a==='restore')send({type:'memRestore',id:id});
+    else if(a==='edit'){var m=arr(MEM.items).find(function(x){return x.id===id});var ma=it.querySelector('.ma');it.querySelector('.mt')&&(it.querySelector('.mt').hidden=true);ma.outerHTML='<div class="ma" style="flex-direction:column;gap:6px"><textarea maxlength="160">'+esc(m?m.text:'')+'</textarea><div style="display:flex;gap:8px"><button class="mini" data-act="save">保存</button><button class="mini q" data-act="cancel">取消</button></div></div>';it.querySelector('textarea').focus()}
+    else if(a==='save'){var v=it.querySelector('textarea').value.trim();if(v)send({type:'memEdit',id:id,text:v})}
+    else if(a==='cancel')renderMem(MEM);
+    else if(a==='del'){var ma2=it.querySelector('.ma');ma2.outerHTML='<div class="ma ask">删掉后找不回来<button class="mini" data-act="delyes">删</button><button class="mini q" data-act="cancel">取消</button></div>'}
+    else if(a==='delyes')send({type:'memDel',id:id})}
+  $('memPend').addEventListener('click',function(e){var b=e.target.closest('[data-p]');if(!b)return;send({type:b.dataset.p==='accept'?'memAccept':'memDismiss',key:b.closest('.mem').dataset.key})});
+  $('memConf').addEventListener('click',function(e){var b=e.target.closest('[data-c]');if(!b)return;send({type:'memConflict',id:b.closest('.mcard').dataset.cid,choice:b.dataset.c})});
+  function memAdd(){var v=$('memAdd').value.trim();if(!v)return;send({type:'memAdd',text:v.replace(/^记住[:：，,\s]*/,'')});$('memAdd').value=''}
+  $('memAddBtn').onclick=memAdd;$('memAdd').addEventListener('keydown',function(e){if(e.key==='Enter')memAdd()});
+  var memT;$('memQ').addEventListener('input',function(){life.clearTimeout(memT);memT=life.timeout(function(){send({type:'memList',q:$('memQ').value})},200)});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'){if(sheet.classList.contains('on')&&!e.target.closest('[data-confirm]'))closeSet();else if(!e.target.closest('[data-confirm]'))send({type:'close'})}});
+
+  // —— 输入 ——
+  function grow(){ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,160)+'px'}
+  ta.addEventListener('input',grow);
+  $('form').addEventListener('submit',function(e){e.preventDefault();var t=ta.value.trim();if(!t)return;ta.value='';grow();send({type:'say',text:t})});
+  ta.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('form').requestSubmit()}});
+
+  // —— 点击：填入建议、今天卡片的回复/完成 ——
+  document.addEventListener('click',function(e){
+    var f=e.target.closest('[data-fill]');if(f){ta.value=f.dataset.fill;grow();ta.focus()}
+    var d=e.target.closest('[data-done]');if(d){var c=d.closest('.tc');send({type:'done',id:c.dataset.id,done:!c.classList.contains('gone')})}
+    var r=e.target.closest('[data-reply-btn]');if(r)send({type:'reply',id:r.closest('.tc').dataset.id});
+    var s=e.target.closest('.sw');if(s&&s.dataset.key){var on=s.getAttribute('aria-checked')!=='true';s.setAttribute('aria-checked',on);send({type:'set',key:s.dataset.key,value:on})}
+  });
+  $('themeSeg').addEventListener('click',function(e){var b=e.target.closest('button');if(b)send({type:'set',key:'theme',value:b.dataset.t})});
+  $('nm').addEventListener('change',function(){send({type:'set',key:'name',value:$('nm').value})});
+  $('hk').addEventListener('change',function(){send({type:'set',key:'hotkey',value:$('hk').value})});
+  $('attClear').onclick=function(){$('attAsk').hidden=false};$('attNo').onclick=function(){$('attAsk').hidden=true};$('attYes').onclick=function(){$('attAsk').hidden=true;send({type:'clearImages'})};
+  $('wipe').onclick=function(){$('wipeAsk').hidden=false};
+  $('wipeNo').onclick=function(){$('wipeAsk').hidden=true};
+  $('wipeYes').onclick=function(){$('wipeAsk').hidden=true;send({type:'wipe'})};
+
+  // —— 渲染：状态、设置、今天 ——
+  function renderWave(w){wave.dataset.state=w.state;wave.setAttribute('aria-label',w.text);wave.title=w.text;wave.parentNode.title=w.text}   // 状态只放在小波浪的悬停提示里（侧栏顶部不再有一行状态字）
+  var SET={};
+  function renderSettings(s){SET=s;
+    if(s.rules)document.querySelectorAll('.seg[data-rule]').forEach(function(g){g.querySelectorAll('button').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.v===s.rules[g.dataset.rule])})});
+    $('brandName').textContent=s.name;if(document.activeElement!==$('nm'))$('nm').value=s.name;
+    document.querySelectorAll('.sw[data-key]').forEach(function(x){x.setAttribute('aria-checked',!!s[x.dataset.key])});
+    document.querySelectorAll('#themeSeg button').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.t===(s.theme||''))});
+    if(s.theme)document.documentElement.setAttribute('data-theme',s.theme);else document.documentElement.removeAttribute('data-theme');
+    $('vLook').textContent=s.theme==='light'?'浅色':s.theme==='dark'?'深色':'跟随系统';
+    if(document.activeElement!==$('hk'))$('hk').value=s.hotkey;
+    if(s.att){$('attInfo').textContent=s.att.images+' 张截图 · '+s.att.mb+' MB'+(s.att.capMb?' / 最多 '+(s.att.capMb>=1024?(s.att.capMb/1024)+' GB':s.att.capMb+' MB')+'（超了从最旧的删）':'')+'；'+s.att.files+' 个文件记了位置（'+s.att.filesFound+' 个找到原件）';$('attClear').disabled=!s.att.images}
+    if(s.remind_brief!==undefined){if(document.activeElement!==$('remBrief'))$('remBrief').value=s.remind_brief;if(document.activeElement!==$('remQf'))$('remQf').value=s.remind_quiet_from;if(document.activeElement!==$('remQt'))$('remQt').value=s.remind_quiet_to;document.querySelectorAll('#remReply button').forEach(function(b){b.setAttribute('aria-pressed',+b.dataset.h===+s.remind_reply_hours)});document.querySelectorAll('#remWait button').forEach(function(b){b.setAttribute('aria-pressed',+b.dataset.d===+(s.remind_wait_days||1))});$('vRem').textContent=s.proactive?'早上 '+s.remind_brief:'已关闭'}
+    if($('vMem'))$('vMem').textContent=s.memCount?s.memCount+' 条':'';$('vBoot').textContent=s.autostart?'开机启动':'不自动启动';$('vSrc').textContent=s.src_wechat?'微信':'未开启';
+  }
+  /* 预测回复：和小浮窗用同一份；点它打开回复卡（卡上点一下才发） */
+  function predLine(x){var p=arr(x.preds);if(!p.length)return '';return '<button class="pred" data-reply-btn title="'+esc(p[0])+'"><b>'+(x.predFallback?'通用':'建议')+'</b><span>'+esc(p[0])+'</span></button>'}
+  function renderToday(items){
+    var dt=new Date();$('todayDate').textContent=(dt.getMonth()+1)+' 月 '+dt.getDate()+' 日';
+    document.querySelectorAll('.grp[data-g]').forEach(function(g){
+      var its=arr(items).filter(function(x){return (x.due_bucket||'undated')===g.dataset.g});
+      g.querySelector('h3 span').textContent=its.filter(function(x){return !x.done}).length;
+      g.querySelector('.cards').innerHTML=its.length?its.map(function(x){
+        var kind=KIND[x.group]||'在办的事';
+        var status=x.response_state==='acknowledged'?'已回应':x.response_state==='promised'?'答应稍后处理':x.response_state==='completed'?'已完成':'';
+        var info='<p class="foot">'+esc(kind+(status?' · '+status:''))+(x.reason?' · '+esc(x.reason):'')+'</p>';
+        var acts=(x.group==='reply'?'<button class="mini" data-jump title="把软件叫过来，打开这个聊天，光标放进输入框（不会替你打字或发送）">去回复</button><button class="mini" data-reply-btn>'+(arr(x.preds).length?'换一句':'回复')+'</button>':'')+'<button class="mini q" data-done>'+(x.done?'撤销':'完成')+'</button>';
+        var who=x.who||x.conv||'',q=String(x.quote||x.what||'').replace(/\s+/g,' ').trim();
+        if(/^\[图片\]/.test(q))q='[图片]';if(q.length>18)q=q.slice(0,18)+'…';
+        var text=(x.group==='reply'||x.group==='waiting')?'<p class="qt">'+(x.group==='waiting'?'你问：':'')+'「'+esc(q)+'」</p>':'<p>'+esc(x.what)+'</p>';
+        return '<div class="tc'+(x.done?' gone':'')+'" data-id="'+esc(x.id)+'"><div class="m"><span class="s who">'+esc(who)+'</span><span class="t'+(x.due?' due':'')+'">'+esc(x.due||x.time||'')+'</span></div>'+text+info+(x.group==='reply'?predLine(x):'')+'<div class="a">'+acts+'</div></div>';
+      }).join(''):'<p class="foot">暂时没有</p>';
+    });
+  }
+
+  // —— 渲染：对话（压缩摘要 + 消息 + 确认卡） ——
+  function cardHtml(c){
+    var h;
+    if(c.actionState==='unknown'||c.needsVerification){
+      return '<div class="confirm closed" data-confirm data-card="'+esc(c.itemId)+'"><div class="h">结果待核对</div><div class="preview">发送步骤已经开始，但还没有核对到结果。请到微信查看后选择。</div><div class="acts"><button class="pri" data-resolve-send="'+esc(c.itemId)+'" data-resolution="sent">已经发出了</button><button class="sec" data-resolve-send="'+esc(c.itemId)+'" data-resolution="retry">没发出，重发</button></div></div>';
+    }
+    if(c.kind==='filepick'){
+      h='<div class="h">'+(c.about?'关于「'+esc(c.about)+'」的文件':'你要的文件')+'是哪一个？</div>';
+    }else if(c.kind==='evtime'){
+      h='<div class="h">'+esc(c.title||'什么时候？')+'</div><div class="quote"><div class="qm">我在聊天里看到</div><div>'+esc(c.seen||'')+'</div></div>';
+    }else if(c.kind==='event'||c.kind==='question'){
+      h='<div class="h">'+esc(c.title||'')+'<span class="src">'+esc(c.src||'微信')+'</span></div><div class="quote"><div class="qm">我在聊天里看到</div><div>'+esc(c.seen||'')+'</div></div>'+(c.kind==='event'?'<div class="preview"><div>'+esc(c.action||'')+'</div>'+(c.refText?'<div><small>原来是：'+esc(c.refText)+'</small></div>':'')+(c.note?'<div><small>'+esc(c.note)+'</small></div>':'')+'</div>':'');
+    }else if(c.kind==='watch'||c.kind==='watchhit'){
+      h='<div class="h">'+esc(c.title||'')+'<span class="src">'+esc(c.src||'微信')+'</span></div>'+(c.seen?'<div class="quote"><div class="qm">'+(c.kind==='watch'?'你说的':'我在聊天里看到')+'</div><div>'+esc(c.seen)+'</div></div>':'')+'<div class="preview"><div>'+esc(c.action||'')+'</div></div>';
+    }else if(c.kind==='source'){
+      h='<div class="h">'+esc(c.title)+'</div><div class="preview"><div>'+esc(c.body)+'</div></div>';
+    }else if(c.kind==='learn'){
+      h='<div class="h">'+esc(c.title)+'</div><div class="preview"><div>'+esc(c.body)+'</div></div>';
+    }else if(c.kind==='askfg'){
+      h='<div class="h">'+(c.stale?(c.staleAt?esc(c.staleAt)+' 的提醒还没发，现在还要发吗？':'现在还要发吗？（之前电脑锁着，没发）'):'现在可以发吗？')+'<span class="src">'+esc(c.src||'微信')+'</span></div><div class="preview"><div>要发给 '+esc(c.who)+'：「'+esc(c.text)+'」</div><div>点「现在发」后，微信会在你屏幕最前面出现不到 2 秒，发完马上还给你。</div></div>';
+    }else if(c.kind==='draft'){
+      h='<div class="h">微信输入框里已经有字<span class="src">'+esc(c.src||'微信')+'</span></div><div class="quote"><div class="qm">现在框里的字（按截图认的，可能有个别字不准）</div><div style="white-space:pre-wrap">'+esc(c.draft||'')+'</div></div><div class="preview"><div>选「替换后发送」：会先删掉上面这些字，再把「'+esc(c.text)+'」发给 '+esc(c.who)+'。只对这一次有效。</div><div>选「先不发」：什么都不动。</div></div>';
+    }else if(c.kind==='person'){
+      h='<div class="h">你说的「'+esc(c.said)+'」是哪一位？</div>';
+    }else if(c.kind==='same'){
+      h='<div class="h">'+esc(c.name)+' 和 '+esc(c.title)+' 是同一个人吗？<span class="src">'+esc(c.app)+'</span></div><div class="quote"><div class="qm">'+esc(c.name)+' 在群「'+esc(c.group||'')+'」里说过话；'+esc(c.title)+' 是你的聊天</div></div>';
+    }else if(c.kind==='reply'){
+      h='<div class="h">回复 '+esc(c.who)+'？<span class="src">'+esc(c.src)+'</span></div><div class="quote"><div class="qm">'+esc(c.who)+' · '+esc(c.time)+'</div><div>'+esc(c.quote)+'</div></div>';
+    }else{
+      h='<div class="h">'+(c.at?'定时：'+esc(c.atText||c.at)+' 发给 ':'发给 ')+esc(c.who)+(c.said?'（你说的「'+esc(c.said)+'」）':'')+'？<span class="src">'+esc(c.src)+'</span></div><div class="preview">'+(c.text?'<div>'+esc(c.text)+'</div>':'')+(c.file?'<div><span class="file">'+FILE+esc(c.file)+(c.fileMeta?' <small>'+esc(c.fileMeta)+'</small>':'')+'</span></div>':'')+'</div>';
+    }
+    var opts=arr(c.opts).map(function(t,k){return '<button class="opt'+(k?'':' sel')+'"><span class="ptr">❯</span><span class="k">'+(k+1)+'</span><span class="t">'+esc(t)+'</span></button>'}).join('')+
+      (c.noInput?'':'<button class="opt"><span class="ptr">❯</span><span class="k">'+(arr(c.opts).length+1)+'</span><span class="t"><input placeholder="'+(c.kind==='reply'?'自己写…':c.kind==='person'?'都不是，我来写…':c.kind==='event'?'改一下：告诉秘书怎么改…':c.kind==='evtime'?'自己填，比如「明天上午10点」':c.kind==='question'?'我来说…':'不发，告诉秘书怎么改…')+'"></span></button>');
+    var closed=c.status!=='open';
+    return '<div class="confirm'+(closed?' closed':'')+'" data-confirm data-card="'+esc(c.itemId)+'">'+h+'<div class="opts" role="listbox">'+opts+'</div><div class="hint">↑↓ 选择 · Enter 确认 · Esc 取消</div>'+
+      (c.status==='scheduled'&&(c.kind==='send'||c.kind==='event')?'<div class="acts" style="margin-top:6px"><button data-schedcancel="'+esc(c.itemId)+'">取消定时</button></div>':'')+(c.status==='sending'?'<div class="result">'+step({ok:true,text:c.waitAway?'等你离开电脑再发…':'正在发送…'})+(c.waitAway?'<div class="acts" style="margin-top:6px"><button class="pri" data-snow="'+esc(c.itemId)+'">立即发</button></div>':'')+'</div>':'')+(c.kind==='send'&&c.actionId&&c.status==='closed'&&!c.noRetry&&(c.failed||c.cancelled||arr(c.result).some(function(r){return r.ok===false&&!/^没发/.test(r.text||'')}))?'<div class="acts" style="margin-top:6px"><button class="pri" data-sretry="'+esc(c.itemId)+'">重试</button><button class="sec" data-scancel="'+esc(c.itemId)+'">取消</button></div>':'')+(arr(c.result).length?'<div class="result">'+arr(c.result).map(step).join('')+'</div>':'')+'</div>';
+  }
+  function itemHtml(it){
+    if(it.role==='me')return '<div class="b">'+esc(it.text)+'</div>';
+    var h=arr(it.steps).map(step).join('');
+    if(it.text)h+='<div class="b">'+esc(it.text).split('\n').map(function(p){return '<p>'+p+'</p>'}).join('')+'</div>';
+    if(it.card){it.card.itemId=it.id;h+=cardHtml(it.card)}
+    if(it.retry)h+='<div class="qcard"><p>可以再试一次。</p><button class="sec" data-retry="'+esc(it.retry)+'">重试</button></div>';
+    if(it.quota){var qs=it.quota.scope;h+='<div class="qcard"><p>'+(qs==='login'?'登录后就能继续用。':qs==='model'?'换一个套餐里有的模型就能继续。':'开通或升级套餐可以继续用。')+'</p>'+(qs==='login'||qs==='model'?'<button class="pri" data-qgo>去设置</button>':'<button class="pri" data-qup>升级</button>')+'</div>'}
+    return h;
+  }
+  function bindCard(el){
+    var card=el.querySelector('[data-confirm]');if(!card||card.classList.contains('closed'))return;
+    var opts=[].slice.call(card.querySelectorAll('.opt')),i=0,id=card.dataset.card;
+    function sel(n){i=(n+opts.length)%opts.length;opts.forEach(function(o,k){o.classList.toggle('sel',k===i)})}
+    function done(k,text){if(card.classList.contains('closed'))return;card.classList.add('closed');send({type:'choose',id:id,k:k,text:text||''})}
+    opts.forEach(function(o,k){var inp=o.querySelector('input');
+      o.addEventListener('mouseenter',function(){sel(k)});
+      o.addEventListener('click',function(e){if(e.target===inp)return;if(inp&&!inp.value.trim()){inp.focus();return}done(k+1,inp?inp.value.trim():o.querySelector('.t').textContent)});
+      if(inp){inp.addEventListener('focus',function(){sel(k)});inp.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.isComposing&&inp.value.trim()){e.preventDefault();done(k+1,inp.value.trim())}else if(e.key==='Escape'){done(0)}e.stopPropagation()})}
+    });
+    card.tabIndex=0;
+    card.addEventListener('keydown',function(e){
+      if(card.classList.contains('closed'))return;if(e.target!==card&&!e.target.closest('.opt'))return;
+      if(e.key==='ArrowDown'){sel(i+1);e.preventDefault()}else if(e.key==='ArrowUp'){sel(i-1);e.preventDefault()}
+      else if(e.key==='Enter'){opts[i].click();e.preventDefault()}else if(e.key==='Escape'){done(0)}
+      else if(/^[1-9]$/.test(e.key)&&+e.key<=opts.length){e.preventDefault();sel(+e.key-1);opts[i].click()}
+    });
+    card.focus({preventScroll:true});
+  }
+  function putItem(it){
+    var el=document.querySelector('.msg[data-id="'+it.id+'"]');
+    if(!el){el=document.createElement('div');el.dataset.id=it.id;inEl.appendChild(el)}
+    var isNew=!el.className,nearBottom=NAV.bulk||stream.scrollHeight-stream.scrollTop-stream.clientHeight<stream.clientHeight*0.6;   // 一次载入整段对话时不逐条量（几百条会很慢）
+    el.className='msg '+(it.role==='me'?'me':'ai');try{el.innerHTML=itemHtml(it);bindCard(el)}catch(e){el.innerHTML='<div class="b"><p>这一条显示不出来（'+esc(e.message)+'）</p></div>'}   // 一条出错不能让后面的都不显示
+    if(NAV.bulk){}else if(nearBottom||it.role==='me')stream.scrollTop=stream.scrollHeight;else if(isNew){NAV.newN++}
+    navDirty();
+  }
+  /* —— 聊天导航：左边按轮次的滚动条（悬停看这一轮、点一下滚过去）、「回到最新」、搜聊天记录（Ctrl+F） —— */
+  var NAV={newN:0,bulk:false,turns:[],tops:[],raf:0,dirtyT:0},railEl=$('rail'),tipEl=$('railTip'),tbBtn=$('toBottom'),tbN=$('toBottomN'),csEl=$('cs'),csQ=$('csQ'),csList=$('csList');
+  var reduceMotion=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function msgText(el){var b=el.querySelector('.b');return ((b?b.innerText:el.innerText)||'').replace(/\s+/g,' ').trim()}
+  function cardText(el){return ((el.querySelector('.card,.qcard,[data-confirm]')||{}).innerText||'').replace(/\s+/g,' ').trim()}
+  function navDirty(){life.clearTimeout(NAV.dirtyT);NAV.dirtyT=life.timeout(buildRail,120)}
+  function buildRail(){   // 一轮 = 你说的一句 + 后面秘书的回答
+    var ms=[].slice.call(inEl.querySelectorAll('.msg')),turns=[],cur=null;
+    ms.forEach(function(m){if(m.classList.contains('me')||!cur){cur={el:m,me:m.classList.contains('me')?msgText(m):'',ai:''};turns.push(cur)}else if(!cur.ai){cur.ai=msgText(m)||cardText(m)}});
+    NAV.turns=turns;railEl.innerHTML=turns.map(function(t,i){return '<button data-turn="'+i+'" aria-label="第 '+(i+1)+' 轮：'+esc((t.me||t.ai).slice(0,40))+'"><i></i></button>'}).join('');
+    railEl.hidden=turns.length<2;measure();onScroll()}
+  function measure(){NAV.tops=NAV.turns.map(function(t){return t.el.offsetTop})}
+  function activeTurn(){var y=stream.scrollTop+stream.clientHeight*0.3,a=NAV.tops,lo=0,hi=a.length-1,r=0;while(lo<=hi){var mid=(lo+hi)>>1;if(a[mid]<=y){r=mid;lo=mid+1}else hi=mid-1}return r}
+  function onScroll(){if(NAV.raf)return;NAV.raf=life.frame(function(){NAV.raf=0;
+    var far=stream.scrollHeight-stream.scrollTop-stream.clientHeight;if(far<40){NAV.newN=0}
+    tbBtn.hidden=far<stream.clientHeight;tbN.hidden=!NAV.newN;tbN.textContent=NAV.newN>99?'99+':NAV.newN;
+    var comp=document.querySelector('.composer');tbBtn.style.bottom=((comp?comp.offsetHeight:90)+12)+'px';railEl.style.bottom=((comp?comp.offsetHeight:90)+8)+'px';
+    if(!NAV.turns.length)return;var i=activeTurn(),on=railEl.querySelector('.on');if(on&&+on.dataset.turn===i)return;if(on)on.classList.remove('on');var b=railEl.children[i];if(b){b.classList.add('on');var rr=railEl.getBoundingClientRect(),br=b.getBoundingClientRect();if(br.top<rr.top||br.bottom>rr.bottom)railEl.scrollTop+=br.top-rr.top-rr.height/2}})}
+  function jumpTo(el){if(!el)return;stream.scrollTo({top:Math.max(0,el.offsetTop-stream.clientHeight*0.25),behavior:reduceMotion?'auto':'smooth'});el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash');life.timeout(function(){el.classList.remove('flash')},1700)}
+  stream.addEventListener('scroll',onScroll,{passive:true});window.addEventListener('resize',function(){measure();onScroll()});
+  tbBtn.onclick=function(){NAV.newN=0;stream.scrollTo({top:stream.scrollHeight,behavior:reduceMotion?'auto':'smooth'})};
+  railEl.addEventListener('click',function(e){var b=e.target.closest('[data-turn]');if(b){tipEl.hidden=true;jumpTo(NAV.turns[+b.dataset.turn].el)}});
+  function showTip(b){var t=NAV.turns[+b.dataset.turn];if(!t)return;tipEl.innerHTML='<b>'+esc(t.me||'秘书')+'</b>'+(t.ai?'<p>'+esc(t.ai)+'</p>':'');tipEl.hidden=false;var cr=document.querySelector('.chat').getBoundingClientRect(),br=b.getBoundingClientRect();tipEl.style.top=Math.max(8,Math.min(br.top-cr.top-20,cr.height-tipEl.offsetHeight-8))+'px'}
+  railEl.addEventListener('mouseover',function(e){var b=e.target.closest('[data-turn]');if(b)showTip(b)});railEl.addEventListener('focusin',function(e){var b=e.target.closest('[data-turn]');if(b)showTip(b)});
+  railEl.addEventListener('mouseleave',function(){tipEl.hidden=true});railEl.addEventListener('focusout',function(){tipEl.hidden=true});
+  railEl.addEventListener('keydown',function(e){var b=e.target.closest('[data-turn]');if(!b)return;var i=+b.dataset.turn;if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();var n=railEl.children[Math.max(0,Math.min(railEl.children.length-1,i+(e.key==='ArrowDown'?1:-1)))];if(n)n.focus()}else if(e.key==='Enter'){e.preventDefault();b.click()}});
+  /* 搜聊天记录：本机搜（不用 AI）；同一个人的其它叫法一起搜；排序：名字/叫法完全对上 → 你自己的话 → 和这个人有关的卡片 → 越新越前 */
+  var CS={names:[],q:'',sel:0,res:[],t:0};
+  function csOpen(){csEl.hidden=false;csQ.focus();csQ.select();csRun()}
+  function csClose(){csEl.hidden=true;$('csOpen').focus()}
+  $('csOpen').onclick=csOpen;$('csX').onclick=csClose;
+  document.addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&!e.altKey&&(e.key==='f'||e.key==='F')){if(document.activeElement&&document.activeElement.closest&&document.activeElement.closest('#sheet'))return;e.preventDefault();csOpen()}});
+  csQ.addEventListener('input',function(){life.clearTimeout(CS.t);CS.t=life.timeout(function(){var q=csQ.value.trim();CS.names=[];if(q.length>=2)send({type:'nameVariants',q:q});csRun();loadOlder(csRun)},120)});   // 搜索也搜压缩前的原文
+  csQ.addEventListener('keydown',function(e){if(e.isComposing)return;if(e.key==='Escape'){e.preventDefault();csClose()}else if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();CS.sel=Math.max(0,Math.min(CS.res.length-1,CS.sel+(e.key==='ArrowDown'?1:-1)));csMark()}else if(e.key==='Enter'){e.preventDefault();csGo(CS.sel)}});
+  function hl(s,terms){var h=esc(s);terms.forEach(function(t){if(!t)return;var et=esc(t).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');h=h.replace(new RegExp(et,'gi'),function(m){return '<mark>'+m+'</mark>'})});return h}
+  function snippet(s,terms){var low=s.toLowerCase(),at=-1;terms.some(function(t){at=low.indexOf(t.toLowerCase());return at>=0});if(at<0)return s.slice(0,60);var a=Math.max(0,at-16);return (a?'…':'')+s.slice(a,a+70)}
+  function csRun(){var q=csQ.value.trim();CS.q=q;CS.sel=0;if(!q){csList.innerHTML='<div class="cs-empty">输入要找的字，比如一个人的名字</div>';CS.res=[];return}
+    var terms=[q].concat(CS.names.filter(function(n){return n&&n!==q})),ms=[].slice.call(inEl.querySelectorAll('.msg')),n=ms.length,res=[];
+    ms.forEach(function(m,i){var txt=msgText(m),card=cardText(m),all=(txt+' '+card),low=all.toLowerCase(),hit=terms.filter(function(t){return low.indexOf(t.toLowerCase())>=0});if(!hit.length)return;
+      var exact=hit.indexOf(q)>=0?1:0,me=m.classList.contains('me'),inCard=card&&terms.some(function(t){return card.toLowerCase().indexOf(t.toLowerCase())>=0});
+      var score=(exact?4:3)+(me?3:0)+(inCard?2:0)+2*(i/Math.max(1,n));res.push({el:m,score:score,me:me,text:txt||card,terms:hit})});
+    res.sort(function(a,b){return b.score-a.score});CS.res=res.slice(0,40);
+    csList.innerHTML=CS.res.length?CS.res.map(function(r,k){var t=r.el.querySelector('time');return '<button class="cs-r'+(k===CS.sel?' sel':'')+'" data-k="'+k+'" role="option"><div class="m"><span class="who">'+(r.me?'你':'秘书')+'</span>'+(t?'<span>'+esc(t.textContent)+'</span>':'')+'<span>第 '+(NAV.turns.findIndex(function(x,j){return (NAV.turns[j+1]?NAV.turns[j+1].el.offsetTop>r.el.offsetTop:true)&&x.el.offsetTop<=r.el.offsetTop})+1)+' 轮</span></div><div class="s">'+hl(snippet(r.text,r.terms),r.terms)+'</div></button>'}).join('')+(CS.names.length>1?'<div class="cs-empty">也搜了同一个人的其它叫法：'+esc(CS.names.filter(function(x){return x!==q}).join('、'))+'</div>':''):'<div class="cs-empty">当前对话里没找到。更早的已压缩的对话可以直接问秘书「以前说过…吗」</div>'}
+  function csMark(){[].forEach.call(csList.querySelectorAll('.cs-r'),function(b){b.classList.toggle('sel',+b.dataset.k===CS.sel);if(+b.dataset.k===CS.sel)b.scrollIntoView({block:'nearest'})})}
+  function csGo(k){var r=CS.res[k];if(!r)return;csEl.hidden=true;jumpTo(r.el)}
+  csList.addEventListener('click',function(e){var b=e.target.closest('.cs-r');if(b)csGo(+b.dataset.k)});  /* 压缩过的对话：原文还在本机档案里。往上翻到顶、或者搜索时，自动把更早的原文补到上面（不改变你正在看的位置） */
+  var OLD={has:false,loading:false,loaded:false,after:null};
+  function loadOlder(then){if(!OLD.has||OLD.loaded){if(then)then();return}OLD.after=then||OLD.after;if(OLD.loading)return;OLD.loading=true;send({type:'olderChat'})}
+  function putOlder(items){OLD.loading=false;OLD.loaded=true;var first=inEl.querySelector('.msg'),h0=stream.scrollHeight,top0=stream.scrollTop;NAV.bulk=true;
+    arr(items).forEach(function(it){var el=document.createElement('div');el.dataset.id=it.id;el.className='msg '+(it.role==='me'?'me':'ai')+' older';try{el.innerHTML=itemHtml(it);var c=el.querySelector('[data-confirm]');if(c)c.classList.add('closed')}catch(e){el.innerHTML='<div class="b"><p>这一条显示不出来</p></div>'}inEl.insertBefore(el,first)});
+    NAV.bulk=false;stream.scrollTop=top0+(stream.scrollHeight-h0);var cp=inEl.querySelector('details.compact');if(cp)cp.hidden=true;buildRail();var f=OLD.after;OLD.after=null;if(f)f()}
+  stream.addEventListener('scroll',function(){if(OLD.has&&!OLD.loaded&&stream.scrollTop<60)loadOlder()},{passive:true});
+  function renderChat(c){
+    inEl.innerHTML=c.summary?'<details class="compact"><summary><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>更早的对话已压缩</summary><p>'+esc(c.summary)+'</p></details>':'';
+    OLD.has=!!(c.hasOlder||c.summary);OLD.loaded=false;OLD.loading=false;NAV.bulk=true;arr(c.items).forEach(putItem);NAV.bulk=false;stream.scrollTop=stream.scrollHeight;buildRail();
+  }
+
+  /* —— 账号：一个「登录或注册」按钮（设备码，浏览器里确认）；套餐和额度；升级只打开服务器自己的页面 —— */
+  var ACCT=null,STORE=null;
+  function nf(n){n=+n||0;return n>=10000?(Math.round(n/1000)/10)+' 万':String(n)}
+  function meter(left,limit){if(!limit)return '';var p=Math.max(0,Math.min(100,Math.round(100*left/limit)));return '<div class="meter'+(p<15?' low':'')+'"><i style="width:'+p+'%"></i></div>'}
+  function renderAcct(d){ACCT=d||{};var h='';
+    if(d.offline){h='<div class="group"><div class="acard"><b>服务器还没上线</b><p class="foot">上线后就能在这里登录或注册、查看套餐和额度。现在秘书照常用这台电脑上的设置工作。</p><div class="acts"><button class="sec" data-acct="retry">再试一次</button></div></div></div>'}
+    else if(d.login){h='<div class="group"><div class="acard"><b>在浏览器里完成登录或注册</b><p class="foot">浏览器里已经打开了登录页。没有账号就在那里注册，注册完会自动回到确认页；看到下面这串确认码一致，点「允许」。</p><div class="acode">'+esc(d.login.user_code)+'</div><div class="acts">'+(d.login.uri?'<button class="sec" data-acct="reopen">重新打开网页</button>':'')+'<button class="sec" data-acct="cancel">取消</button></div></div></div>'}
+    else if(!d.signedIn){h='<div class="group"><div class="acard"><b>登录或注册</b><p class="foot">用我们的账号，不用自己准备 AI 密钥；新账号有一小份免费试用额度。秘书只拿到这台设备的登录凭证，不经手你的密码。</p>'+(d.notice?'<p class="foot">'+esc(d.notice)+'</p>':'')+'<div class="acts"><button class="pri" data-acct="login">登录或注册</button></div></div></div>'}
+    else{var p=d.plan||{};
+      h='<div class="group"><div class="it"><span class="l">'+esc((d.user&&(d.user.email||d.user.name))||'已登录')+'<div class="foot">这台设备：'+esc(d.device||'')+'</div></span></div>'+
+        '<div class="it"><span class="l">套餐</span><span class="v">'+esc(p.name||'—')+'</span></div>'+
+        (p.lifeLimit?'<div class="it"><span class="l">试用额度还剩 '+nf(p.lifeLeft)+'<div class="foot">一次性的，用完要开通套餐</div>'+meter(p.lifeLeft,p.lifeLimit)+'</span></div>':'')+
+        '<div class="it"><span class="l">今天还剩 '+nf(p.dailyLeft)+' / '+nf(p.dailyLimit)+'<div class="foot">'+(p.exhausted==='daily'?'今天的用完了，':'')+(p.resets?p.resets+' 恢复':'')+'</div>'+meter(p.dailyLeft,p.dailyLimit)+'</span></div>'+
+        '<div class="it"><span class="l">本月还剩 '+nf(p.monthLeft)+' / '+nf(p.monthLimit)+meter(p.monthLeft,p.monthLimit)+'</span></div>'+
+        (arr(p.models).length>1?'<div class="it"><span class="l">用哪个模型<div class="foot">只能选套餐里有的</div></span><div class="seg" id="mdlSeg" role="group" aria-label="模型">'+p.models.map(function(m){return '<button data-model="'+esc(m)+'" aria-pressed="'+(m===(d.model||p.defaultModel))+'">'+esc(m.replace(/^claude-/,'').replace(/-(\d+)-(\d+)$/,' $1.$2'))+'</button>'}).join('')+'</div></div>':'')+
+        '</div><div class="group"><div class="acard"><div class="acts">'+(d.link_upgrade?'<button class="pri" data-open="'+esc(d.link_upgrade)+'">升级</button>':'')+(d.link_account?'<button class="sec" data-open="'+esc(d.link_account)+'">管理账号</button>':'')+'<button class="sec" data-acct="logout">退出登录</button></div></div></div>'}
+    h+='<details class="group" style="padding:0"><summary class="it" style="cursor:pointer">这台电脑在账号里的名字</summary><div class="it"><input class="nm" id="acctDev" style="width:100%" maxlength="40" value="'+esc(d.device_name||'')+'" placeholder="登录时自动起一个，比如 Windows 电脑-3F2A" aria-label="设备名"><button class="mini" data-acct="dev">保存</button></div><p class="foot" style="padding:0 14px 12px">只用来在账号页面区分你的设备。默认不用你的 Windows 用户名和电脑名；改了以后，下次登录时生效。</p></details>';
+    h+='<details class="group" style="padding:0"><summary class="it" style="cursor:pointer">服务器地址</summary><div class="it"><input class="nm" id="acctBase" style="width:100%" value="'+esc(d.base||'')+'" aria-label="服务器地址"><button class="mini" data-acct="base">保存</button></div><p class="foot" style="padding:0 14px 12px">一般不用改。除这台电脑（127.0.0.1）外只能用 https。</p></details>';
+    $('acctBody').innerHTML=h;
+    document.querySelectorAll('#aiSeg [data-ai]').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.ai===(d.ai_mode||(d.hasLocalKey?'local':'account')))});
+  }
+  $('acctBody').addEventListener('click',function(e){var b=e.target.closest('[data-acct]'),o=e.target.closest('[data-open]'),m=e.target.closest('[data-model]');
+    if(o){send({type:'acctOpen',url:o.dataset.open});return}
+    if(m){send({type:'acctSet',key:'model',value:m.dataset.model});return}
+    if(!b)return;var k=b.dataset.acct;
+    if(k==='login'){b.disabled=true;b.textContent='正在打开…';send({type:'acctLogin'})}
+    else if(k==='cancel')send({type:'acctCancel'});
+    else if(k==='reopen'&&ACCT.login)send({type:'acctOpen',url:ACCT.login.uri});
+    else if(k==='logout')send({type:'acctLogout'});
+    else if(k==='retry'){$('acctBody').innerHTML='<p class="foot">正在连接…</p>';send({type:'acctView'})}
+    else if(k==='base')send({type:'acctSet',key:'base',value:$('acctBase').value.trim()});
+    else if(k==='dev')send({type:'acctSet',key:'device_name',value:$('acctDev').value.trim()})});
+  $('aiSeg').addEventListener('click',function(e){var b=e.target.closest('[data-ai]');if(b)send({type:'acctSet',key:'ai_mode',value:b.dataset.ai})});
+
+  /* —— 插件商城：列表（装 / 更新 / 卸载）；安装前先下载、本机校验，再出权限卡片，点「安装」才装 —— */
+  function renderStore(d){STORE=d||{};var h='',ins=d.installed||[];
+    if(ins.length)h+='<h3 class="memh">已安装</h3><div class="group">'+ins.map(function(p){return '<div class="it"><span class="l">'+esc(p.name)+' <span class="foot">'+esc(p.version)+'</span><div class="foot">'+esc(p.app||'')+(p.withdrawn?' · 已被商城下架，已停用':(!p.enabled?' · 已停用':''))+'</div></span><button class="mini q" data-un="'+esc(p.id)+'">卸载</button></div>'+
+      '<div class="it" data-unask="'+esc(p.id)+'" hidden><span class="l">卸载「'+esc(p.name)+'」？秘书会改回自己适配的读法</span><button class="mini q" data-unno>取消</button><button class="mini" data-unyes="'+esc(p.id)+'">卸载</button></div>'}).join('')+'</div>';
+    if(d.comingSoon)h+='<div class="group"><div class="acard"><b>商城即将开放</b><p class="foot">正式开放前，这里只能管理已经装好的插件。</p></div></div>';
+    else if(d.needLogin)h+='<div class="group"><div class="acard"><b>先登录账号</b><p class="foot">登录后可以浏览和安装插件。</p><div class="acts"><button class="pri" data-go="acct">去登录</button></div></div></div>';
+    else if(d.offline)h+='<div class="group"><div class="acard"><b>服务器还没上线</b><p class="foot">上线后这里会列出可以装的插件。</p></div></div>';
+    else if(d.error)h+='<p class="foot">'+esc(d.error)+'</p>';
+    else{var ps=d.plugins||[];h+='<h3 class="memh">可以安装</h3><div class="group">'+(ps.length?ps.map(function(p){var st=p.installed?(p.installed===p.latest?'<span class="v">已安装</span>':'<button class="mini" data-inst="'+esc(p.id)+'" data-ver="'+esc(p.latest)+'">更新到 '+esc(p.latest)+'</button>'):'<button class="mini" data-inst="'+esc(p.id)+'" data-ver="'+esc(p.latest)+'">安装</button>';
+        return '<div class="it"><span class="l">'+esc(p.name)+' <span class="risk'+(p.risk==='high'?' high':'')+'">'+(p.risk==='high'?'高风险':p.risk==='medium'?'中':'低')+'</span><div class="foot">'+esc(p.summary)+'</div><div class="foot">'+esc(p.publisher)+' · '+esc(p.app)+' · '+esc(p.latest)+'</div></span>'+st+'</div>'}).join(''):'<div class="it"><span class="l foot">暂时没有插件</span></div>')+'</div>'}
+    $('storeBody').innerHTML=h;$('vStore').textContent=ins.length?ins.length+' 个':''}
+  $('storeBody').addEventListener('click',function(e){var t=e.target,u=t.closest('[data-un]'),uy=t.closest('[data-unyes]'),un=t.closest('[data-unno]'),i=t.closest('[data-inst]');
+    if(u){var a=document.querySelector('[data-unask="'+u.dataset.un+'"]');if(a)a.hidden=false;return}
+    if(un){un.closest('[data-unask]').hidden=true;return}
+    if(uy){uy.disabled=true;send({type:'storeUninstall',id:uy.dataset.unyes});return}
+    if(i){i.disabled=true;i.textContent='正在下载并校验…';send({type:'storePrep',id:i.dataset.inst,version:i.dataset.ver})}});
+  function showConsent(d){var M=$('consentModal'),c=d.consent;
+    if(!d.ok){M.hidden=true;toast(d.reason||'没有通过校验，不能安装',false);send({type:'storeView'});return}
+    var ps=c.perms||[],send1=ps.some(function(p){return p.send});
+    $('consentBox').innerHTML='<div class="h">安装「'+esc(c.name)+'」'+esc(c.version)+'？</div><p class="foot">给「'+esc(c.app)+'」用。它会获得这些权限：</p>'+
+      '<ul class="perms">'+ps.map(function(p){return '<li'+(p.send?' class="send"':'')+'><span class="risk'+(p.risk==='high'?' high':'')+'">'+(p.risk==='high'?'高':p.risk==='medium'?'中':'低')+'</span>'+esc(p.text)+(p.added?'（新增）':'')+'</li>'}).join('')+'</ul>'+
+      (send1?'<p class="foot" style="color:var(--clay)">这个插件想「发送」。就算装了，每次发送也一定先出秘书自己的确认卡，由你点了才发。</p>':'')+
+      (arr(c.can).length?'<p class="foot">能做：'+c.can.map(esc).join('；')+'</p>':'')+(arr(c.cannot).length?'<p class="foot">不会做：'+c.cannot.map(esc).join('；')+'</p>':'')+
+      (c.replaces?'<p class="foot">装好后，秘书改用这个插件读「'+esc(c.app)+'」；卸载时恢复原来的读法。</p>':'')+
+      '<div class="acts"><button class="pri" id="csYes">安装</button><button class="sec" id="csNo">取消</button></div>';
+    M.hidden=false;$('csNo').focus();
+    $('csNo').onclick=function(){M.hidden=true;send({type:'storeView'})};
+    $('csYes').onclick=function(){M.hidden=true;send({type:'storeInstall',id:c.id})}}
+  /* —— AI 与隐私 → 自带密钥：服务商（Claude / DeepSeek / OpenAI / 其他兼容接口）、密钥（保存后只显示前 3 位和后 4 位）、测试连接、删除、模型 —— */
+  var AIP=null;
+  function renderAi(d){AIP=d||{};var ps=d.providers||[],cur=ps.filter(function(p){return p.id===d.provider})[0]||ps[0]||{},h='';
+    h+='<div class="group"><div class="it"><span class="l">服务商</span><div class="seg" id="aiProv" role="group" aria-label="服务商">'+ps.map(function(p){return '<button data-prov="'+esc(p.id)+'" aria-pressed="'+(p.id===d.provider)+'">'+esc(p.name.replace(/（.*?）/,''))+'</button>'}).join('')+'</div></div>';
+    if(cur.id==='compat')h+='<div class="it"><span class="l">接口地址<div class="foot">必须是 https://，例如 https://api.example.com/v1</div></span><input class="nm" id="aiBase" style="width:16em" value="'+esc(d.compatBase||'')+'" aria-label="接口地址"><button class="mini" data-ai-act="base">保存</button></div>';
+    h+='<div class="it"><span class="l">密钥<div class="foot">'+(cur.hasKey?(cur.keyFrom==='env'?'用的是电脑上 .env 里的那把（'+esc(cur.mask)+'）':'已保存 '+esc(cur.mask)+'，加密存在这台电脑上'):'还没有')+'</div></span>'+
+      '<input class="nm" id="aiKey" type="password" autocomplete="off" placeholder="粘贴新的密钥" style="width:12em" aria-label="密钥"><button class="mini" data-ai-act="save">保存</button></div>';
+    h+='<div class="it"><span class="l" id="aiTestRes">'+(cur.hasKey?'可以测一下连接':'填好密钥后可以测一下连接')+'</span><button class="mini" data-ai-act="test"'+(cur.hasKey?'':' disabled')+'>测试连接</button>'+(cur.hasKey&&cur.keyFrom==='saved'?'<button class="mini q" data-ai-act="del">删除密钥</button>':'')+'</div>';
+    if(arr(cur.models).length)h+='<div class="it"><span class="l">模型<div class="foot">'+(arr(cur.vision).indexOf(cur.model)>=0?'能看图片':'这个模型不能看图片：秘书会直说，不会悄悄换别家')+'</div></span><select class="nm" id="aiModel" aria-label="模型">'+cur.models.map(function(m){return '<option'+(m===cur.model?' selected':'')+'>'+esc(m)+'</option>'}).join('')+'</select></div>';
+    h+='<p class="foot" style="padding:8px 14px 12px">'+esc(d.privacy||'')+'。现在用的是：'+(d.mode==='account'?'我们的账号':esc(cur.name||''))+'。</p></div>';
+    $('ownKey').innerHTML=h}
+  $('ownKey').addEventListener('click',function(e){var p=e.target.closest('[data-prov]'),b=e.target.closest('[data-ai-act]');if(p){send({type:'aiProvider',id:p.dataset.prov});return}if(!b)return;var id=AIP.provider,k=b.dataset.aiAct;
+    if(k==='save'){var v=$('aiKey').value.trim();if(!v)return;send({type:'aiSaveKey',id:id,key:v});$('aiKey').value=''}
+    else if(k==='test'){b.disabled=true;$('aiTestRes').textContent='正在测试…';send({type:'aiTest',id:id})}
+    else if(k==='del')send({type:'aiDelKey',id:id});else if(k==='base')send({type:'aiCompat',url:$('aiBase').value.trim()})});
+  $('ownKey').addEventListener('change',function(e){if(e.target.id==='aiModel')send({type:'aiModel',id:AIP.provider,model:e.target.value})});
+  /* —— 关于：版本和更新（更新包下载后在本机核对签名和文件，备份后安装，起不来自动退回旧版本） —— */
+  /* 关于 → 过去 24 小时：读了多少、发了几次成了几次、出了几次错；点开看原因（只有种类和次数） */
+  function renderHealth(h){h=h||{};$('healthLine').textContent='读到 '+(h.read||0)+' 条消息 · 发送试了 '+(h.tried||0)+' 次、成功 '+(h.sent||0)+' 次 · 出错 '+(h.errors||0)+' 次';$('healthWhy').innerHTML=arr(h.why).length?arr(h.why).map(function(w){return '<div class="foot">'+esc(w.kind)+'：'+esc(w.reason)+' × '+esc(w.n)+'</div>'}).join(''):'<div class="foot">没有问题</div>'}
+  function renderUpdate(d){d=d||{};var h='<div class="group"><div class="it"><span class="l">版本</span><span class="v">'+esc(d.current||'')+'</span></div>';
+    if(d.state==='available'||d.state==='required')h+='<div class="acard"><b>'+(d.state==='required'?'需要更新到 ':'有新版本 ')+esc(d.version)+'</b>'+(d.notes?'<p class="foot">'+esc(d.notes)+'</p>':'')+'<p class="foot">更新时秘书会关掉再自动打开（十几秒）。装之前先备份；新版本起不来会自动退回现在这个版本。</p><div class="acts"><button class="pri" data-upd="go">更新</button><button class="sec" data-upd="later">稍后</button></div></div>';
+    else h+='<div class="it"><span class="l">'+(d.state==='offline'?'服务器还没上线，等会儿再查':d.state==='error'?'服务器给的更新没有通过检查，没有更新':'已经是最新版本')+'</span><button class="mini" data-upd="check">检查更新</button></div>';
+    $('aboutBody').innerHTML=h+'</div>';$('vAbout').textContent=(d.state==='available'||d.state==='required')?'有新版本':(d.current||'')}
+  $('aboutBody').addEventListener('click',function(e){var b=e.target.closest('[data-upd]');if(!b)return;var k=b.dataset.upd;
+    if(k==='check'){b.disabled=true;b.textContent='正在检查…';send({type:'updCheck'})}else if(k==='go'){b.disabled=true;b.textContent='正在下载…';send({type:'updInstall'})}else if(k==='later'){b.closest('.acard').remove()}});
+  /* —— 设置 → 记忆 → 文件和主题：选过的「这个文件讲的是 X」，可以删；老实的统计 —— */
+  function renderFiles(d){d=d||{};var ls=d.links||[],s=d.stats||{},h='';
+    var tot=(+s.accepted||0)+(+s.changed||0);
+    h+='<h3 class="memh">文件</h3><div class="group">';
+    h+='<div class="it"><span class="l">记下的文件 '+(d.count||0)+' 个<div class="foot">直接给出的文件被你直接发走 '+(+s.accepted||0)+' / '+tot+' 次；要问你的 '+(+s.asked||0)+' 次；你选了「都不是」 '+(+s.none||0)+' 次</div></span></div>';
+    h+=ls.map(function(x){return '<div class="it"><span class="l">'+esc(x.name)+'<div class="foot">来自 '+esc(x.from||'')+' · 讲的是 '+arr(x.topics).map(function(t){return '<span class="risk">'+esc(t)+' <button class="lk" data-fdel="'+esc(x.id)+'" data-ftopic="'+esc(t)+'" aria-label="删掉">×</button></span>'}).join(' ')+'</div></span></div>'}).join('')+'</div>';
+    $('filesSec').innerHTML=h}
+  $('filesSec').addEventListener('click',function(e){var d=e.target.closest('[data-fdel]');if(d)send({type:'fileTopicDel',id:d.dataset.fdel,topic:d.dataset.ftopic})});
+  /* —— 设置 → 记忆 → 人和称呼：每个人的聊天和称呼，可以删称呼、解除；「可能是同一个人」要点「是」才连上 —— */
+  function renderPeople(d){d=d||{};var ps=d.people||[],sg=d.suggestions||[],h='';
+    if(!ps.length&&!sg.length){$('peopleSec').innerHTML='';return}
+    h+='<h3 class="memh">人和称呼</h3><div class="group">'+ps.map(function(p){var ch=arr(p.chats).map(function(c){return esc(c.title)}).join('、')||esc(p.name||'');
+      return '<div class="it"><span class="l">'+ch+'<div class="foot">'+(arr(p.aliases).length?arr(p.aliases).map(function(a){return '<span class="risk">'+esc(a.text)+' <button class="lk" data-pdel="'+esc(p.id)+'" data-ptext="'+esc(a.text)+'" aria-label="删掉这个称呼">×</button></span>'}).join(' '):'还没有别的称呼')+'</div></span><button class="mini q" data-punlink="'+esc(p.id)+'">解除</button></div>'}).join('')+'</div>';
+    if(sg.length)h+='<h3 class="memh">可能是同一个人</h3><div class="group">'+sg.map(function(s,i){return '<div class="it"><span class="l">'+esc(s.name)+' 和 '+esc(s.title)+'<div class="foot">'+esc(s.name)+' 在群「'+esc(s.group||'')+'」里说过话</div></span><button class="mini" data-psame="'+i+'" data-yes="1">是</button><button class="mini q" data-psame="'+i+'">不是</button></div>'}).join('')+'</div>';
+    $('peopleSec').innerHTML=h;$('peopleSec').__sg=sg}
+  $('peopleSec').addEventListener('click',function(e){var d=e.target.closest('[data-pdel]'),u=e.target.closest('[data-punlink]'),s=e.target.closest('[data-psame]');
+    if(d)send({type:'peopleDel',id:d.dataset.pdel,text:d.dataset.ptext});else if(u)send({type:'peopleUnlink',id:u.dataset.punlink});
+    else if(s){var x=$('peopleSec').__sg[+s.dataset.psame];send({type:'peopleSame',yes:!!s.dataset.yes,name:x.name,app:x.app,title:x.title})}});
+  document.addEventListener('click',function(e){var u=e.target.closest('[data-resolve-send]');if(u){if(u.disabled)return;u.closest('.acts').querySelectorAll('button').forEach(function(b){b.disabled=true});send({type:'resolveSend',id:u.dataset.resolveSend,resolution:u.dataset.resolution});return}var r=e.target.closest('[data-sretry]'),x=e.target.closest('[data-scancel]'),sn=e.target.closest('[data-snow]');var ws=e.target.closest('[data-watchstop]');if(ws){send({type:'watchStop',item:ws.dataset.watchstop});return}var ae=e.target.closest('[data-actedit]');if(ae){send({type:'actEdit',item:ae.dataset.actedit});return}var sc=e.target.closest('[data-schedcancel]');if(sc){if(sc.disabled)return;sc.disabled=true;send({type:'schedCancel',item:sc.dataset.schedcancel});return}if(sn){if(sn.disabled)return;sn.disabled=true;sn.textContent='马上发…';send({type:'sendNow',item:sn.dataset.snow});return}if(r){if(r.disabled)return;r.disabled=true;r.textContent='正在重试…';send({type:'sendRetry',item:r.dataset.sretry})}else if(x){send({type:'sendCancel',item:x.dataset.scancel})}});   // 发送失败的卡片：重试 / 取消
+  document.addEventListener('click',function(e){var r=e.target.closest('[data-retry]');if(r){r.disabled=true;send({type:'say',text:r.dataset.retry})}});
+  document.addEventListener('click',function(e){if(e.target.closest('[data-qgo]')||(e.target.closest('[data-qup]')&&!(ACCT&&ACCT.link_upgrade))){openSet();go('acct');send({type:'acctView'})}else if(e.target.closest('[data-qup]'))send({type:'acctOpen',url:ACCT.link_upgrade})});   // 对话里的额度卡片
+  $('consentModal').addEventListener('click',function(e){if(e.target.id==='consentModal'){$('consentModal').hidden=true;send({type:'storeView'})}});
+  function receive(d){
+    if(d.type==='init'){renderApps(d.apps);renderSettings(d.settings);renderWave(d.wave);renderToday(d.today);renderChat(d.chat)}
+    else if(d.type==='settings')renderSettings(d.settings);
+  else if(d.type==='acct')renderAcct(d.data||{offline:true});
+  else if(d.type==='acctLabel')$('vAcct').textContent=d.text||'';
+  else if(d.type==='acctMsg')toast(d.text,false);
+  else if(d.type==='store')renderStore(d.data||{offline:true});
+  else if(d.type==='storeConsent')showConsent(d);
+  else if(d.type==='storeMsg')toast(d.text,false);
+  else if(d.type==='people')renderPeople(d.data);
+  else if(d.type==='files')renderFiles(d.data);
+  else if(d.type==='update')renderUpdate(d.data);
+  else if(d.type==='aiPage')renderAi(d.data);
+  else if(d.type==='aiMsg')toast(d.text,false);
+  else if(d.type==='aiTest'){var r=$('aiTestRes');if(r)r.textContent=(d.ok?'✓ ':'✗ ')+d.text}
+  else if(d.type==='updateMsg')toast(d.text,false);
+  else if(d.type==='memData')renderMem(d.data);
+  else if(d.type==='jumpResult'){document.querySelectorAll('[data-jump]').forEach(function(b){b.disabled=false;b.textContent='去回复'});if(!d.ok)toast(d.text||'没找到这个聊天',false)}
+  else if(d.type==='upcoming')renderUpcoming(d.days);
+  else if(d.type==='removed')toast('已移除「'+d.name+'」'+(d.counts?'，删掉了 '+d.counts.messages+' 条消息':''),d.undo);
+  else if(d.type==='undone')toast('已撤销',false);
+  else if(d.type==='memSrc')memSrc(d.id,d.items);
+  else if(d.type==='apps')renderApps(d.apps);
+  else if(d.type==='picker')openPicker(d);
+  else if(d.type==='pickerInstalled'){PK.installed=d.installed||[];if(!$('pickModal').hidden)renderPicker()}
+  else if(d.type==='picked'){if(d.app&&d.app.added){$('pkHint').textContent='「'+d.app.name+'」已经添加过了'}else pkPick(d.app)}
+  else if(d.type==='pickCancelled'){$('pkHint').textContent=d.note||''}
+  else if(d.type==='adaptCard')adaptCard(d.app);
+    else if(d.type==='wave')renderWave(d.wave);
+    else if(d.type==='today')renderToday(d.today);
+else if(d.type==='health')renderHealth(d.data);
+else if(d.type==='activity')renderActivity(d.items);
+    else if(d.type==='item')putItem(d.item);
+    else if(d.type==='olderChat')putOlder(d.items);
+    else if(d.type==='nameVariants'){if(d.q===csQ.value.trim()){CS.names=arr(d.names);csRun()}}
+    else if(d.type==='chat')renderChat(d.chat);
+    else if(d.type==='openSettings')openSet();
+    else if(d.type==='busy')$('busy').textContent=d.on?'秘书在想…':'会先给你确认，才会发出去';
+  }
+  window.chrome&&window.chrome.webview&&window.chrome.webview.addEventListener('message',function(e){var d=e.data;if(d.type==='pageVisibility'){life.setVisible(d.visible);return}life.accept(d,receive)});
+  life.onChange(function(on){if(on){measure();onScroll();send({type:'pageResumed',surface:'main'})}});
+  send({type:'ready'});
+})();
+</script>
+
+<script>(function(){var o=document.getElementById('unOpen'),c=document.getElementById('unCard');if(!o||!c)return;o.addEventListener('click',function(){c.hidden=!c.hidden});c.addEventListener('click',function(e){var b=e.target.closest('[data-unmode]');if(!b)return;var m=b.getAttribute('data-unmode');if(!m){c.hidden=true;return}c.querySelectorAll('button').forEach(function(x){x.disabled=true});b.textContent='正在卸载…';window.chrome&&window.chrome.webview&&window.chrome.webview.postMessage({type:'uninstall',mode:m})})}());</script>
+</html>
