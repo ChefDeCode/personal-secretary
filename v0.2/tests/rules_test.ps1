@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
+﻿# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 ChefDeCode
 # 设置 → 秘书可以自己做的事：规则怎么存、固定底线挡不挡得住。会临时改设置，结束后改回原样
 $ErrorActionPreference = 'Stop'

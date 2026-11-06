@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
+﻿# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 ChefDeCode
 # 更新器.ps1 — 由秘书在下载、校验完更新包之后启动；秘书退出后：备份 → 覆盖 → 启动新版本 → 健康检查 → 起不来就恢复旧版本
 # 只动更新包里列出的文件（以及备份它们）；data\（用户数据）永远不碰。每一步记到 <目标>\data\update_log.jsonl（只有版本、步骤、结果）。

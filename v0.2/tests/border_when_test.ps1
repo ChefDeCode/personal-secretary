@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
+﻿# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 ChefDeCode
 # 微信外的边框什么时候亮：秘书在想 / 值守在读（含透明还原读）→ 不亮，只有线在呼吸；借用前台发送 → 只在借用那一段亮。
 # A、B：真的边缘线在跑，看它会不会拉起边框；C：仿微信窗口里走一遍发送（会抢前台），看边框标记什么时候亮。结果写到 data\border_when_test.txt

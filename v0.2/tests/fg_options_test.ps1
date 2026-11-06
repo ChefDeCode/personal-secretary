@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
+﻿# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 ChefDeCode
 # 两个开关：「永远不借用鼠标」（只有真点击才放得进的窗口 → 不发、什么都不留）；「等我离开电脑 1 分钟」+「立即发」（点了立即发就不再等）。
 # 会抢前台，等你 2 分钟没动电脑才开始。结果写到 data\fg_options_test.txt

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
+﻿# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 ChefDeCode
 # 发送卡「重试」「取消」测试（在临时对话里，不发送任何消息：Start-Send 换成只记录）：旧卡片（缺字段）、新卡片、连点两次、失败后取消再重试
 $ErrorActionPreference = 'Stop'

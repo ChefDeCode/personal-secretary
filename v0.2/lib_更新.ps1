@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
+﻿# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 ChefDeCode
 # lib_更新.ps1 — 秘书自己的更新（服务端 API §7）：检查 → 下载 → 校验 → 备份 → 安装 → 健康检查 → 不行就退回
 # 校验全部在本机做，任何一项不过都拒绝，并说明原因：

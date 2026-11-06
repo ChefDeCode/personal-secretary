@@ -14,6 +14,18 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2 (pinned by commit)
 
+      # Windows PowerShell 5.1 reads a .ps1 without BOM in the system code page, which garbles Chinese text and can break parsing
+      - name: Parse-check every .ps1 with Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $bad = 0
+          Get-ChildItem -Recurse -Filter *.ps1 | ForEach-Object {
+            $errs = $null; [void][System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$null, [ref]$errs)
+            if ($errs) { $bad++; "PARSE ERROR: $($_.FullName)"; $errs | Select-Object -First 3 | ForEach-Object { "  $($_.Extent.StartLineNumber): $($_.Message)" } }
+          }
+          if ($bad) { throw "$bad file(s) failed to parse" }
+          "all .ps1 files parse"
+
       - name: Build from source (csc from .NET Framework; WebView2 SDK from nuget.org, SHA256-pinned)
         shell: powershell
         run: .\build.ps1 -FetchWebView2

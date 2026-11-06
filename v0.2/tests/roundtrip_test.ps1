@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
+﻿# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 ChefDeCode
 # 回归测试：每种存下来的记录，列表字段有 0 / 1 / 2 个元素时，存进去再读出来都还是列表（PowerShell 会把只有一个元素的数组拆开）
 $ErrorActionPreference = 'Stop'

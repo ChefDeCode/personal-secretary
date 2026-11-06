@@ -348,7 +348,9 @@ function Invoke-Claude($conv, $batch) {
   if ($j.stop_reason -eq 'refusal') { throw 'refusal' }
   $stats.云端成功++
   $obj = ((($j.content | Where-Object type -eq 'text' | ForEach-Object text) -join '') | ConvertFrom-Json); $script:LastEvents = @($obj.events)
-  try { $shr = Start-HaikuShadow $req @($obj.items) $conv $j.usage $key; if ($shr -eq 'cap') { $stats.影子今天到上限 = [int]$stats.影子今天到上限 + 1 } } catch {}   # 只拿来对比，不出卡、不显示、不做任何事；一天最多 $0.30
+  # 影子对比是开发时测准确度用的，默认关：只有 config.json 里 features.quality_shadow = true 才会多发一次 Haiku 请求（用你的密钥，一天最多 $0.30）
+  $shadowOn = $false; try { $shadowOn = (Get-Content (Join-Path $root 'config.json') -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json).features.quality_shadow -eq $true } catch {}
+  if ($shadowOn) { try { $shr = Start-HaikuShadow $req @($obj.items) $conv $j.usage $key; if ($shr -eq 'cap') { $stats.影子今天到上限 = [int]$stats.影子今天到上限 + 1 } } catch {} }   # 只拿来对比，不出卡、不显示、不做任何事
   @($obj.items)   # 带时间的事另外放着，整理那边写进 events.jsonl
 }
 # 看图：只发裁剪出的图片本身（PNG base64）给 claude-sonnet-5-5；结果只存本机（加密）

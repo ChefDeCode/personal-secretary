@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
+﻿# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 ChefDeCode
 # 真模型一次：虚构聊天（不是真聊天）走值守同一套提示词和格式，看「带时间的事」分得对不对、时间是不是照抄原话、聊天里的「指令」有没有被当真。只打印类型和数字
 $ErrorActionPreference = 'Stop'

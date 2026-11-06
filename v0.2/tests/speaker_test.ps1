@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
+﻿# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 ChefDeCode
 # 「谁说的」判断的模拟测试：自己画聊天区（左右气泡、浅色 / 深色、单聊 / 群聊、100% / 150% 缩放），用本机 OCR 读，再判断每一行是谁说的
 # 不碰微信、不发任何鼠标键盘输入；所有文字都是虚构的。同时用旧规则（只看文字行位置）跑一遍做对比。

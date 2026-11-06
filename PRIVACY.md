@@ -9,7 +9,8 @@
 
 **发到哪里**
 - **你选的 AI 服务商**（Anthropic / DeepSeek / OpenAI 兼容接口，用你自己的密钥）：需要整理的消息文字；你在设置里允许「云端看图」时还有截图。由服务商按它的隐私政策处理。
-- **账号 / 商城服务端**（可选，默认 `https://secretary.demandatlas.online`，可改）：在你登录、检查更新、下载插件时联系，发的是登录信息和设备名（默认是「Windows 用户名 的 电脑名」，用来在账号页面区分你的设备）。只有当你不用自己的密钥、而选择用账号里的 AI 额度时，需要整理的文字才会经过这个服务端转给 AI。不登录也能用。
+- **账号 / 商城服务端**（可选，默认 `https://secretary.demandatlas.online`，可改）：在你登录、检查更新、下载插件时联系，发的是登录信息和设备名（默认是「Windows 电脑-」加 4 位随机字符，不含 Windows 用户名和电脑名，可以在 设置 → 账号 里改）。只有当你不用自己的密钥、而选择用账号里的 AI 额度时，需要整理的文字才会经过这个服务端转给 AI。不登录也能用。
+- 开发时测准确度用的「影子对比」（同一批消息再让 Haiku 整理一遍做比较）**默认关闭**，只有在 `config.json` 里设 `features.quality_shadow = true` 才会开，开了会多用你的密钥（一天最多 $0.30）。
 - 除此以外不联网，没有统计、没有遥测。
 
 **怎么读**
@@ -28,7 +29,8 @@
 
 **What leaves your PC**
 - **Your chosen AI provider** (Anthropic, DeepSeek or an OpenAI-compatible endpoint, with your own key) receives the message text to be organized, plus screenshots if you enable cloud image reading. The provider's own privacy policy applies.
-- **The optional account / store server** (default `https://secretary.demandatlas.online`, configurable) is contacted for sign-in, update checks and plugin downloads, and receives sign-in data and a device name (by default "<Windows user name> 的 <computer name>", so you can tell your devices apart on the account page). Only if you choose the account's AI allowance instead of your own key does the text to be organized pass through that server to the AI. The app works without signing in.
+- **The optional account / store server** (default `https://secretary.demandatlas.online`, configurable) is contacted for sign-in, update checks and plugin downloads, and receives sign-in data and a device name (by default "Windows 电脑-" plus 4 random characters, never your Windows user name or computer name; you can change it in Settings → Account). Only if you choose the account's AI allowance instead of your own key does the text to be organized pass through that server to the AI. The app works without signing in.
+- The developer-only "shadow comparison" (re-running the same batch on Haiku to compare accuracy) is **off by default**; it runs only if you set `features.quality_shadow = true` in `config.json`, and then uses your own key (at most $0.30 a day).
 - Nothing else: no analytics and no telemetry.
 
 **How it reads**

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
+﻿# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 ChefDeCode
 # lib_AI源_openai.ps1 — OpenAI（GPT）和「其他（兼容 OpenAI 接口）」：把秘书的 Claude 格式请求翻译成 Chat Completions，再把回答翻译回 Claude 格式
 # 这样对话、工具调用（确认卡、认人、找文件）在所有服务商上走同一套代码。

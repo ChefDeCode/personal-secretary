@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
+﻿# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 ChefDeCode
 # 连着发几条：3 条发给 2 个不同的聊天，一条接一条（每条都重新等你停手 2 秒），测试窗口自己报告发出去的字逐字比较；
 # 每条记微信在最前面停了多久；最后微信回到原样。会真的抢前台，所以等你 2 分钟没动电脑才开始。结果写到 data\fg_queue_test.txt

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
+﻿# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 ChefDeCode
 # 整理事项时「谁说的」的测试：用户自己的请求 → 你在等谁；看不出是谁说的 → 绝不进「需要你回」
 # 只用虚构消息；不读微信、不写任何数据文件。-Cloud 时再用同一批虚构消息调用一次模型（需要 .env 和云端权限）

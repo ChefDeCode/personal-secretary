@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
+﻿# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 ChefDeCode
 # 浮窗点击诊断：不动鼠标；打开浮窗后看几个点下面是哪个窗口（WindowFromPoint），以及浮窗的扩展样式
 param([switch]$KeepOpen)

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
+﻿# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 ChefDeCode
 # lib_软件清单.ps1 — 「添加软件」的软件清单：所有桌面上开着的（包括最小化的、只在托盘里的、商店应用）+ 电脑上装了的
 # 以前只列「当前可见、尺寸 ≥200×150」的窗口：最小化的窗口尺寸很小（例如 157×25）、商店应用在 ApplicationFrameHost 里、没开着的装了也看不到，所以清单很短

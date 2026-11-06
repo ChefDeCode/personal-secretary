@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
+﻿# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 ChefDeCode
 # 编译.ps1 — 用 Windows 自带的 .NET Framework C# 编译器把 秘书启动器.cs 编成 v0.2\秘书.exe，并嵌入 ui\secretary.ico
 # 换了图标后重新运行一次即可：powershell -ExecutionPolicy Bypass -File .\编译.ps1
