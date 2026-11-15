@@ -75,7 +75,7 @@ try {
     $af = [Management.Automation.Language.Parser]::ParseFile((Join-Path $v2 'lib_发文件.ps1'),[ref]$null,[ref]$null)
     foreach($fn in $af.FindAll({param($n)$n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -in 'Test-FileNameShown','Invoke-FileSend'},$true)){. ([scriptblock]::Create($fn.Extent.Text))}
     function Set-ClipFile($x){$script:clipWrites++;'synthetic-clipboard'}
-    function Restore-Clip($x){$script:clipRestores++}
+    function Restore-FileSendClip($x){$script:clipRestores++}
     $path=Join-Path $root 'synthetic.txt';[IO.File]::WriteAllText($path,'synthetic')
     function New-Driver {
       @{settleMs=0;summon={$true};title={'synthetic'};isForeground={$true};focusInput={};paste={};dialog={@{present=$false}};inputHasFile={$true};clearInput={};pressEnter={$script:pressed++;$script:sentFile=$true};lastMineHasFile={param($n)$script:sentFile};restore={$script:restored++}}
