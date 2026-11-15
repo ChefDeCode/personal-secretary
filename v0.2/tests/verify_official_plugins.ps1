@@ -11,6 +11,7 @@ if ($code -ne 200) { "  [FAIL] server health returned HTTP $code"; exit 1 }# 正
 . "$v2\lib_v2.ps1"; . "$v2\lib_账号.ps1"; . "$v2\lib_商店.ps1"
 $ids = [ordered]@{ 'qq-nt' = 'QQ.exe'; 'wxwork' = 'WXWork.exe'; 'dingtalk' = 'DingTalk.exe'; 'feishu' = 'Feishu.exe'; 'outlook-classic' = 'OUTLOOK.EXE'; 'outlook-new' = 'olk.exe' }
 "server $((Get-ServerCfg).base); signed in: $(Test-SignedIn); test mode: $([bool](Read-Config).server.store_test_key); meta keys ok: $((Get-MetaKeyCheck -Fresh).ok)"
+if (-not (Test-SignedIn)) { '[ENVIRONMENT] not signed in on this PC — plugin details need a login, skipped'; exit 54 }
 $pass = 0
 foreach ($id in $ids.Keys) {
   $d = Invoke-Api 'GET' "/v1/store/plugins/$id" -Auth

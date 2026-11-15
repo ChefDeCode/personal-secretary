@@ -11,6 +11,7 @@ if ($code -ne 200) { "  [FAIL] server health returned HTTP $code"; exit 1 }# 正
 # 只输出通过/失败、用时和 token 数；不输出邮箱、令牌或任何内容
 . "$v2\lib_v2.ps1"; . "$v2\lib_账号.ps1"; . "$v2\lib_商店.ps1"; . "$v2\lib_更新.ps1"
 function Assert($c, $l) { $script:tot++; if ($c) { $script:ok++ }; "  [{0}] {1}" -f $(if ($c) { 'PASS' } else { 'FAIL' }), $l }; $script:ok = 0; $script:tot = 0
+if (-not (Test-Path -LiteralPath $script:CfgPath) -or -not (Test-SignedIn)) { '[ENVIRONMENT] not signed in on this PC (no config or no login) — skipped'; exit 54 }
 $cfgBefore = [IO.File]::ReadAllText($script:CfgPath)
 $sw = [Diagnostics.Stopwatch]::StartNew()
 Assert ((Get-ServerCfg).base -eq 'https://secretary.demandatlas.online' -and (Test-SignedIn)) "signed in on the production server"

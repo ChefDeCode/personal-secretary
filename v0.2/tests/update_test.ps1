@@ -7,6 +7,7 @@ $v2 = Split-Path $PSScriptRoot -Parent
 $T = Join-Path $env:TEMP 'secretary_update_test'; Remove-Item $T -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force "$T\cfg" | Out-Null
 . (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'update_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_v2.ps1"; Copy-Item $script:CfgPath "$T\cfg\config.json"; $script:CfgPath = "$T\cfg\config.json"; $script:AcctDir = "$T\cfg"
+New-Item -ItemType Directory -Force "$T\app\v0.2" | Out-Null; [IO.File]::WriteAllText("$T\app\v0.2\VERSION", '0.2.0'); $script:UpdRoot = "$T\app\v0.2"   # 模拟数据是按「装的是 0.2.0」生成的：不跟着真实的 VERSION 走（2026-11-15 改成 0.2.2 后这里曾经误报）
 . "$v2\lib_账号.ps1"; . "$v2\lib_商店.ps1"; . "$v2\lib_更新.ps1"
 function Assert($c, $l) { $script:tot++; if ($c) { $script:ok++ }; "  [{0}] {1}" -f $(if ($c) { 'PASS' } else { 'FAIL' }), $l }; $script:ok = 0; $script:tot = 0
 Add-Type -AssemblyName System.Web.Extensions; $js = New-Object Web.Script.Serialization.JavaScriptSerializer; $js.MaxJsonLength = [int]::MaxValue

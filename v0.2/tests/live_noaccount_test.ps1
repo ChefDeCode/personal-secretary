@@ -30,7 +30,9 @@ Assert ($u.status -in 200, 204, 404 -and -not ($u.json -and $u.json['version']))
 $sw.Restart(); $sv = Get-StoreView; $sms = $sw.ElapsedMilliseconds
 "     store view: plugins $(@($sv.plugins).Count); needLogin=$([bool]$sv.needLogin) error=$($sv.error) comingSoon=$([bool]$sv.comingSoon)"
 $wd = @($sv.plugins | Where-Object { $_.id -eq 'wechat-desktop' })
-Assert (-not $sv.comingSoon -and ($wd.Count -eq 1 -and $wd[0].latest -eq '1.0.0')) "store opens (no 「即将开放」) and lists wechat-desktop 1.0.0 ($sms ms)"
+# 2026-11-15：没登录时服务器的插件列表回 401，秘书显示「先登录」；登录了才查列表和插件包
+if ($sv.needLogin -and -not (Test-SignedIn)) { Assert (-not $sv.comingSoon -and -not $sv.error -and -not $sv.offline) "store opens (no 「即将开放」) and, since this PC is not signed in, asks to sign in first; plugin list and package check skipped ($sms ms)" }
+else { Assert (-not $sv.comingSoon -and ($wd.Count -eq 1 -and $wd[0].latest -eq '1.0.0')) "store opens (no 「即将开放」) and lists wechat-desktop 1.0.0 ($sms ms)" }
 if ($wd.Count) { $sw.Restart(); $pk = Get-StorePackage 'wechat-desktop' '1.0.0'; $vms = $sw.ElapsedMilliseconds
   Assert ($pk.ok) "wechat-desktop 1.0.0: download + full verification with the pinned store key passed ($vms ms) $(if (-not $pk.ok) { "code=$($pk.code) $($pk.reason)" })"
   if ($pk.ok) { "     verified: sha256 ok, signature ok (key $($pk.statement['key_id'])), manifest == statement, script $(@($pk.script['actions'].Keys).Count) actions within the step table; NOT installed" } }
