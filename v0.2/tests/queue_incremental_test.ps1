@@ -6,6 +6,7 @@ $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
 $pass = 0; $fail = 0; function Check($n, $ok) { if ($ok) { $script:pass++ } else { $script:fail++ }; "  [$(if ($ok) { 'PASS' } else { 'FAIL' })] $n" }
 $T = Join-Path $env:TEMP ('secretary_qinc_' + [guid]::NewGuid().ToString('n').Substring(0, 6)); New-Item -ItemType Directory -Force "$T\data", "$T\v2" | Out-Null
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'queue_incremental_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_整理队列.ps1"
 $journal = "$T\data\messages.jsonl"
 function Msg([int]$i) { ([ordered]@{ ts = (Get-Date).AddMinutes(-5000 + $i).ToString('s'); app = '微信'; conv_key = 'c' + ($i % 7); key = 'k' + $i; sender = 's'; text = 't'; baseline = $false } | ConvertTo-Json -Compress) }

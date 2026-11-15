@@ -3,6 +3,7 @@
 # Edge 来源：只读勾选过的网站。假浏览器窗口（不碰你的真 Edge）
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'web_source_test_foreground_original'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_v2.ps1"; . (Join-Path $script:Root 'lib_识别.ps1'); . "$v2\lib_虚拟桌面.ps1"; . "$v2\lib_网页读.ps1"
 $pass = 0; $fail = 0; function Check($n, $ok) { if ($ok) { $script:pass++ } else { $script:fail++ }; "  [$(if ($ok) { 'PASS' } else { 'FAIL' })] $n" }
 Check 'site rules: subdomain allowed, look-alike not' ((Test-SiteAllowed 'https://work.example.com/x' @('example.com')) -and -not (Test-SiteAllowed 'https://badexample.com' @('example.com')) -and -not (Test-SiteAllowed 'https://example.com.evil.io' @('example.com')) -and (Test-SiteAllowed 'www.example.com' @('https://www.example.com/')))

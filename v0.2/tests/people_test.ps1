@@ -3,6 +3,7 @@
 # 认人测试：全部用虚构的联系人（不读真实聊天、不发送、不碰微信）；人和称呼存在临时文件里
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'people_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_v2.ps1"; . "$v2\lib_账号.ps1"
 $T = Join-Path $env:TEMP 'secretary_people_test'; Remove-Item $T -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force $T | Out-Null
 $script:PeopleFile = "$T\people.jsonl"; $script:ChatFile = "$T\chat.jsonl"; $script:ChatArchive = "$T\chat_archive.jsonl"; $script:SummaryFile = "$T\summary.txt"; $script:ActDir = "$T\actions"; New-Item -ItemType Directory -Force $script:ActDir | Out-Null

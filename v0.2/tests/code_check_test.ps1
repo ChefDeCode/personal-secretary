@@ -62,5 +62,14 @@ $extWrite = 'Set-ItemProperty|New-ItemProperty|Remove-ItemProperty|New-Item\s+(-
 $rootDir = Split-Path $v2 -Parent
 $unjournaled = @(foreach ($f in @(Get-ChildItem $rootDir -Recurse -Include *.ps1 -File | Where-Object { $_.FullName -notmatch '\\旧东西\\|\\tests\\|\\server\\|\\node_modules\\|webview2|reliability-code-backups|test-runs' -and $_.Name -notin 'lib_改动记录.ps1', '卸载秘书.ps1', '跑测试.ps1' })) {
   $i = 0; foreach ($l in [IO.File]::ReadLines($f.FullName)) { $i++; if ($l -match $extWrite -and $l.TrimStart() -notmatch '^#') { "$($f.Name):$i" } } })
-Check "changes outside the app folder only go through the change journal ($($unjournaled.Count)$(if ($unjournaled.Count) { ': ' + ($unjournaled -join '; ') }))" (-not $unjournaled.Count)"code_check_test: $pass pass, $fail fail"
+Check "changes outside the app folder only go through the change journal ($($unjournaled.Count)$(if ($unjournaled.Count) { ': ' + ($unjournaled -join '; ') }))" (-not $unjournaled.Count)# 7) 测试必须先换到自己的临时数据文件夹，再加载秘书的代码（不然会把测试记录写进你真正的一周数据里）；联网真测（要用真登录、只读）除外
+$liveOnly = 'live_account_test', 'live_noaccount_test', 'verify_official_plugins', 'deepseek_live_test'
+$loadRx = '(^|;|\{)\s*\.\s+[^;#]*(lib_v2\.ps1|lib_[^\\''"]+\.ps1|12_值守\.ps1|发送\.ps1|秘书\.ps1)|Import-TestFunctions\s+"|Parser\]::ParseFile\([^)]*(秘书|12_值守)'
+$noTestData = @(foreach ($tf in @(Get-ChildItem "$v2\tests" -Filter *.ps1 -File | Where-Object { $_.BaseName -notmatch '^(lib_|fake_|code_check_test$|float_hit$|chain_tests$)' -and $liveOnly -notcontains $_.BaseName })) {
+  $tl = @([IO.File]::ReadAllLines($tf.FullName)); $firstLoad = -1; $firstData = -1
+  for ($k = 0; $k -lt $tl.Count; $k++) { if ($tl[$k].TrimStart().StartsWith('#')) { continue }
+    if ($firstData -lt 0 -and $tl[$k] -match 'Use-TestDataFolder|lib_synthetic_test\.ps1') { $firstData = $k }
+    if ($firstLoad -lt 0 -and $tl[$k] -match $loadRx -and $tl[$k] -notmatch 'lib_synthetic_test\.ps1|lib_test_data\.ps1') { $firstLoad = $k } }
+  if ($firstLoad -ge 0 -and ($firstData -lt 0 -or $firstData -gt $firstLoad)) { "$($tf.Name):$($firstLoad + 1)" } })
+Check "every test switches to its own temp data folder before loading the secretary ($($noTestData.Count)$(if ($noTestData.Count) { ': ' + ($noTestData -join '; ') }))" (-not $noTestData.Count)"code_check_test: $pass pass, $fail fail"
 if($fail){exit 1}

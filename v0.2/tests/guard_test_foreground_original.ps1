@@ -2,6 +2,7 @@
 # Copyright (C) 2026 ChefDeCode
 # 点击保护的单元测试：别人的窗口挡在目标上时，一下都不点（不发任何真实输入）
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'guard_test_foreground_original'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$PSScriptRoot\lib_测试输入.ps1"
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 function Assert($c, $l) { $script:tot++; if ($c) { $script:ok++ }; "  [{0}] {1}" -f $(if ($c) { 'PASS' } else { 'FAIL' }), $l }; $script:ok = 0; $script:tot = 0

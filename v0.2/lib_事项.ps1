@@ -46,11 +46,14 @@ function Get-TrackedTodos([switch]$IncludeClosed) {
   foreach ($t in Read-Jsonl 'todos.jsonl') {
     $id = Get-TodoId $t; if (-not $id) { continue }
     $base = try { [datetime]$t.原文时间 } catch { [datetime]$t.ts }; if ($base -eq [datetime]::MinValue) { $base = [datetime]$t.ts }
-    $due = [string](Unprotect $t.截止); $parsed = Resolve-TaskDue $due $base
+    $due = [string](Unprotect $t.截止); $parsed = Resolve-TaskDue $due $base -FromMessage
+    # 截止原话其实是过去的日期：事情和原话都留着，只是不算「有截止时间的」、没有截止、不提醒（界面里归到「在办的事」）
+    $cat0 = [string]$t.类别; $cat1 = if ($parsed.old -and $cat0 -eq '有截止时间的') { '在办的事' } else { $cat0 }
+    $why = if ($parsed.old) { '提到的日期已经过去，不当截止时间' } elseif ($parsed.needs_time) { '只说了钟点、比消息时间还早，哪天待你确认' } else { '' }
     $by[$id] = [ordered]@{ id=$id; created=[string]$t.ts; updated=[string]$t.ts; since=$base.ToString('s'); app=$(if($t.app){[string]$t.app}else{'微信'}); conv=[string](Unprotect $t.conv)
-      who=[string](Unprotect $t.谁); what=[string](Unprotect $t.事情); category=[string]$t.类别; due_text=$due; due_at=[string]$parsed.at; has_time=[bool]$parsed.has_time
+      who=[string](Unprotect $t.谁); what=[string](Unprotect $t.事情); category=$cat1; due_text=$due; due_at=[string]$parsed.at; has_time=[bool]$parsed.has_time
       quote=[string](Unprotect $t.原文); speaker=[string]$t.发言; source_keys=@($t.source_keys | Where-Object { $_ }); message_key=[string]$t.message_key; source_sequence=[long]$t.source_sequence
-      status=$(if($done[$id]){'completed'}else{'open'}); response_state=''; reason=''; no_auto_complete=[bool]$kept[$id]; needs_time=$false; time_question_asked=$false; revision=0 }
+      status=$(if($done[$id]){'completed'}else{'open'}); response_state=''; reason=$why; no_auto_complete=[bool]$kept[$id]; needs_time=[bool]$parsed.needs_time; time_question_asked=$false; revision=0 }
   }
   foreach ($r in Get-TaskHistory) { $by[[string]$r.id] = Copy-TaskMap $r.task }
   foreach ($t in $by.Values) {
@@ -58,20 +61,33 @@ function Get-TrackedTodos([switch]$IncludeClosed) {
     [pscustomobject]$t
   }
 }
-function Resolve-TaskDue([string]$said, [datetime]$base = (Get-Date)) {
+# -FromMessage：截止原话来自聊天消息（$base = 消息时间）时多两条规则——
+#   日期比消息早 1 天以上：那是消息里提到的过去的时间，不是截止（old）；
+#   只说了钟点、没说哪天、而且比消息时间还早：不当今天、也不偷偷挪到明天，待你确认（needs_time）
+# 你自己回答「什么时候处理」时（Set-TaskDueAnswer）不加这两条
+function Resolve-TaskDue([string]$said, [datetime]$base = (Get-Date), [switch]$FromMessage) {
   if (-not $said) { return @{at='';has_time=$false} }
-  $iso = [datetime]::MinValue
-  if ($said -match '^\d{4}-\d{2}-\d{2}' -and [datetime]::TryParse($said, [ref]$iso)) { return @{at=$iso.ToString('s');has_time=($said -match '[T ]\d\d:\d\d')} }
+  # 识别屏幕文字时，日期里的横线常被认成「一」「彐」或全角 / 长横线：数字之间的这些字先换回 "-"
+  $said = $said -replace '(?<=\d)\s*[\u4e00\u5f50\uff0d\u2014\u2013\u2010]\s*(?=\d)', '-'
+  $iso = [datetime]::MinValue; $at = $null; $hasTime = $false
+  if ($said -match '^\d{4}-\d{2}-\d{2}' -and [datetime]::TryParse($said, [ref]$iso)) { $at = $iso; $hasTime = ($said -match '[T ]\d\d:\d\d') }
   # “等我一下”没有可靠期限，不能凭空指定两小时后。
-  if ($said -match '等我|稍后|晚点|待会|回头|改天|有空|过阵子' -and $said -notmatch '今天|明天|后天|周|星期|\d+[点:：]') { return @{at='';has_time=$false} }
-  $r = $null; if (Get-Command Resolve-Due -ErrorAction SilentlyContinue) { $r = Resolve-Due $said $base }
-  if (-not $r -and $said -match '晚上|今晚') { return @{at=$base.Date.AddHours(20).ToString('s');has_time=$true} }
-  if ($r) {
-    $at = [datetime]$r.at;$hasTime=[bool]$r.time
-    if ($said -match '晚上|今晚|明晚' -and $said -notmatch '\d+[点:：]') { $at = $at.Date.AddHours(20);$hasTime=$true }
-    return @{at=$at.ToString('s');has_time=$hasTime}
+  elseif ($said -match '等我|稍后|晚点|待会|回头|改天|有空|过阵子' -and $said -notmatch '今天|明天|后天|周|星期|\d+[点:：]') { return @{at='';has_time=$false} }
+  else {
+    $r = $null; if (Get-Command Resolve-Due -ErrorAction SilentlyContinue) { $r = Resolve-Due $said $base }
+    if (-not $r -and $said -match '晚上|今晚') { $at = $base.Date.AddHours(20); $hasTime = $true }
+    elseif ($r) {
+      $at = [datetime]$r.at;$hasTime=[bool]$r.time
+      if ($said -match '晚上|今晚|明晚' -and $said -notmatch '\d+[点:：]') { $at = $at.Date.AddHours(20);$hasTime=$true }
+    }
   }
-  @{at='';has_time=$false}
+  if (-not $at) { return @{at='';has_time=$false} }
+  if ($FromMessage) {
+    if ($at.Date -lt $base.Date.AddDays(-1)) { return @{at='';has_time=$false;old=$true} }
+    $dayWord = $said -match '\d{4}\s*[-/年]|\d{1,2}\s*月|\d{1,2}\s*[号日]|(?<![\d:：])\d{1,2}[/.]\d{1,2}(?![\d:：])|今|明|昨|后天|周|星期|礼拜|月底'
+    if (-not $dayWord -and $hasTime -and $at -lt $base) { return @{at='';has_time=$false;needs_time=$true} }
+  }
+  @{at=$at.ToString('s');has_time=$hasTime}
 }
 function Get-TaskDueBucket($task, [datetime]$now = (Get-Date)) {
   if (-not $task.due_at) { return 'undated' }
@@ -136,7 +152,7 @@ function Get-TaskReplyDecision($Task,[string]$Text,[datetime]$At=(Get-Date),[swi
   if($Explicit -and $s -match '^(取消|不用|不用了|不用管|不用再做了)[。！!]*$'){$change.status='dismissed';$change.reason='你已明确说不用处理';$event='dismissed'}
   elseif($completed -and $Explicit -and -not $Task.no_auto_complete){$change.status='completed';$change.response_state='completed';$change.reason=$(if($FileVerified){'已核对这件事的文件发送结果'}else{'已找到与这件事对应的完成说明'});$change.automatic=$true;$event='evidence_complete'}
   elseif($delayed -and $Explicit){
-    $due=Resolve-TaskDue $s $At;$change.status='promised';$change.response_state='promised';$change.category='你答应别人的';$change.needs_time=(-not $due.at);$change.reason=$(if($due.at){'答应稍后处理，时间按本机时间推断'}else{'答应稍后处理，时间待你确认'})
+    $due=Resolve-TaskDue $s $At -FromMessage;$change.status='promised';$change.response_state='promised';$change.category='你答应别人的';$change.needs_time=(-not $due.at);$change.reason=$(if($due.at){'答应稍后处理，时间按本机时间推断'}else{'答应稍后处理，时间待你确认'})
     if($due.at){$change.due_at=$due.at;$change.due_text=$s;$change.has_time=$due.has_time;$change.time_question_asked=$false}
     $event='promise_or_reschedule'
   }
@@ -273,7 +289,7 @@ function Merge-TaskCandidate($Candidate) {
     $decision=Get-TaskReplyDecision $chosen $quote $at -Explicit
     $changes=$decision.changes;$reason=$decision.event
   }else{
-    $text=($revisionTail+' '+[string](Unprotect $Candidate.截止)).Trim();$due=Resolve-TaskDue $text $at
+    $text=($revisionTail+' '+[string](Unprotect $Candidate.截止)).Trim();$due=Resolve-TaskDue $text $at -FromMessage
     $changes=@{reason='已更新原事项，原文和修改历史均保留'};$reason='source_revision'
     if($quote -match '取消|不用再|不用了'){
       if($chosen.no_auto_complete){$changes.reason='你撤销过自动收起，保留到你手动确认'}

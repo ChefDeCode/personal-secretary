@@ -3,7 +3,7 @@
 # 真服务器上的严格检查（2026-11-05 恢复）：要用你在这台电脑上的登录，所以用真正的安装目录（只读，不改设置、不装东西）。
 # 服务器连不上（530 / 域名找不到 / 超时）→ 记「跳过」并写原因；服务器回 401 / 404 / 5xx 或者任何一项没过 → 失败。绝不把错误状态算成通过
 $ErrorActionPreference = 'Stop'
-$v2 = (Split-Path $PSScriptRoot -Parent)
+$v2 = $(if ($env:SECRETARY_REAL_V2) { $env:SECRETARY_REAL_V2 } else { Split-Path $PSScriptRoot -Parent })
 try { Add-Type -AssemblyName System.Net.Http; $hc = New-Object Net.Http.HttpClient; $hc.Timeout = [TimeSpan]::FromSeconds(12); $pr = $hc.GetAsync('https://secretary.demandatlas.online/healthz').GetAwaiter().GetResult(); $code = [int]$pr.StatusCode }
 catch { '[ENVIRONMENT] server unreachable (DNS / timeout / network) — skipped'; exit 54 }
 if ($code -eq 530) { '[SERVER530] status=530 — server tunnel down, skipped'; exit 53 }

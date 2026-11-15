@@ -5,7 +5,7 @@
 $script:Root = Split-Path $PSScriptRoot -Parent
 . (Join-Path $script:Root 'lib_窗口工具.ps1')
 . (Join-Path $script:Root 'lib_数据.ps1')
-$script:V2Data = Join-Path $PSScriptRoot 'data'; New-Item -ItemType Directory -Force $script:V2Data | Out-Null
+$script:V2Data = if ($env:SECRETARY_TEST_DATA) { Join-Path $env:SECRETARY_TEST_DATA 'v0.2data' } else { Join-Path $PSScriptRoot 'data' }; New-Item -ItemType Directory -Force $script:V2Data | Out-Null
 . (Join-Path $PSScriptRoot 'lib_检索.ps1')   # 全量历史检索（内存索引）
 $script:AttData = $script:DataDir; . (Join-Path $PSScriptRoot 'lib_附件.ps1')   # 图片和文件记录
 $script:MemDir = $script:V2Data; $script:MemMsgFile = Join-Path $script:DataDir 'messages.jsonl'; $script:MemChatFile = Join-Path $script:V2Data 'chat_archive.jsonl'; . (Join-Path $PSScriptRoot 'lib_记忆.ps1')   # 长期记忆

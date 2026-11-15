@@ -6,6 +6,7 @@ $base=[IO.Path]::GetFullPath($env:TEMP);$testRoot=Join-Path $base ('secretary_st
 [void][IO.Directory]::CreateDirectory($testRoot)
 $script:ActDir=Join-Path $testRoot 'actions';[void][IO.Directory]::CreateDirectory($script:ActDir);$script:V2Data=$testRoot
 function Protect([string]$s){$s};function Unprotect([string]$s){$s}
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'stale_result_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . (Join-Path $v2 'lib_动作.ps1')
 $script:pass=0;$script:fail=0
 function Check($n,$ok){if($ok){$script:pass++;'[PASS] '+$n}else{$script:fail++;'[FAIL] '+$n}}

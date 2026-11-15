@@ -102,11 +102,24 @@ function Request-ReadSnapshot([switch]$Full,[switch]$Force) {
   }
   if ($ok) { $script:ReadNext=(Get-Date).AddSeconds(2) }
 }
+$script:SuspendTask = $null; $script:SuspendErrLogged = $false
+function Test-SuspendTask {   # 上一次挂起有没有出错：读一下结果（这样不会变成「没人接的异常」），出错整个运行期只记一次
+  $t = $script:SuspendTask; if (-not $t -or -not $t.IsCompleted) { return }; $script:SuspendTask = $null
+  if ($t.IsFaulted) { $ex = $t.Exception; if (-not $script:SuspendErrLogged) { $script:SuspendErrLogged = $true; try { [ExitLog]::Write('webview-suspend-failed', [ExitLog]::Describe($ex)) } catch {} } }
+}
 function Set-PageVisibility([bool]$Visible) {
   if (-not $wv.CoreWebView2) { return }
-  if ($Visible) { try { $wv.CoreWebView2.Resume() } catch {} }
+  Test-SuspendTask
+  if ($Visible) {
+    if (-not $wv.Visible) { $wv.Visible = $true }   # 先恢复可见，内容是挂起前那一帧，不会白一下
+    try { $wv.CoreWebView2.Resume() } catch {}
+    try { $wv.CoreWebView2.MemoryUsageTargetLevel = [Microsoft.Web.WebView2.Core.CoreWebView2MemoryUsageTargetLevel]::Normal } catch {}
+  }
   $wv.CoreWebView2.PostWebMessageAsJson((@{type='pageVisibility';visible=$Visible}|ConvertTo-Json -Compress))
-  if (-not $Visible) { try { [void]$wv.CoreWebView2.TrySuspendAsync() } catch {} }
+  if (-not $Visible) {
+    try { $wv.CoreWebView2.MemoryUsageTargetLevel = [Microsoft.Web.WebView2.Core.CoreWebView2MemoryUsageTargetLevel]::Low } catch {}
+    if (-not $script:SuspendTask) { try { $wv.Visible = $false; $script:SuspendTask = $wv.CoreWebView2.TrySuspendAsync() } catch { if (-not $script:SuspendErrLogged) { $script:SuspendErrLogged = $true; try { [ExitLog]::Write('webview-suspend-failed', [ExitLog]::Describe($_.Exception)) } catch {} } } }
+  }
   else { Request-ReadSnapshot -Full -Force }
 }
 function Show-TaskTimeQuestions($items) {
@@ -188,6 +201,7 @@ function Request-PageRead([string]$Page,$Data) {
   })
 }
 function Write-ErrorLog($ex, [string]$where, [string]$note = '') {   # $note 只用于秘书自己的状态说明（计数之类），从不放消息内容
+  if ($env:SECRETARY_TEST -and (Get-Command Test-TestWriteBlocked -ErrorAction SilentlyContinue) -and (Test-TestWriteBlocked (Join-Path $script:V2Data 'errors.log'))) { return }
   try {
     $e = $ex; while ($e.InnerException) { $e = $e.InnerException }
     $stack = if ($ex.ErrorRecord) { $ex.ErrorRecord.ScriptStackTrace } elseif ($ex.ScriptStackTrace) { $ex.ScriptStackTrace } else { $e.StackTrace }
@@ -336,6 +350,7 @@ $script:WvRestartAt = $null
 function Request-WvRestart([string]$kind) {
   [ExitLog]::Write('webview-process-failed', $kind)
   if ($kind -notin 'BrowserProcessExited', 'RenderProcessExited', 'RenderProcessUnresponsive') { return }
+  if ([ExitLog]::Ending -or $script:quitting) { return }   # Windows 正在关机（浏览器进程是被系统关掉的）：不重开
   if ($script:WvRestartAt) { return }   # 只重开一次
   $flag = Join-Path $script:V2Data 'wv_restart.txt'; try { $last = [datetime](Get-Content $flag -Raw) } catch { $last = [datetime]::MinValue }
   if (((Get-Date) - $last).TotalMinutes -lt 10) { return }   # 10 分钟内已经重开过：不再连环重开
@@ -688,7 +703,7 @@ function Poll-Compaction {
 # ———————————— 回复卡：点今天卡片上的“回复”，Claude 给三句候选（cloud_text 关闭时用本地通用句） ————————————
 $script:ReplyTasks = @{}
 # 预测回复（两边共用）：每条「需要你回」后台请一次模型给 3 句（最可能的在前），存在 data\reply_preds.json（加密）；打开回复、小浮窗、提醒卡都用这一份
-$script:PredFile = Join-Path $script:V2Data 'reply_preds.json'; $script:PredTask = $null; $script:PredDay = ''; $script:PredCount = 0
+$script:PredFile = Join-Path $script:V2Data 'reply_preds.json'; $script:PredNextCheck = $null; $script:PredTask = $null; $script:PredDay = ''; $script:PredCount = 0
 $script:GenericReplies = @('好的，收到', '我晚点回复你', '稍等，我确认一下')
 function Get-Preds { $h = @{}; if (Test-Path $script:PredFile) { try { ((Unprotect (Get-Content $script:PredFile -Raw)) | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $h[$_.Name] = $_.Value } } catch {} }; $h }
 function Save-Preds($h) { $keep = @{}; foreach ($k in @($h.Keys)) { $keep[$k] = $h[$k] }; [IO.File]::WriteAllText($script:PredFile, (Protect ($keep | ConvertTo-Json -Depth 4 -Compress))) }
@@ -704,12 +719,21 @@ function Step-Preds {
     if ((Get-DoneSet)[$pt.id]) { return }   # 预测还没回来你就回过了：不要了
     $h = Get-Preds; $h[$pt.id] = @{ opts = $(if ($opts.Count) { $opts } else { $script:GenericReplies }); fallback = (-not $opts.Count); ts = (Get-Date).ToString('s') }; Save-Preds $h
     $script:todaySig = ''; Post-Mini; return }
-  if (-not (Get-Permission 'cloud_text')) { return }
-  $d = (Get-Date).ToString('yyyy-MM-dd'); if ($script:PredDay -ne $d) { $script:PredDay = $d; $script:PredCount = 0 }; if ($script:PredCount -ge 40) { return }   # 一天最多 40 次
-  $h = Get-Preds; $need = @(@(Get-Today | Where-Object { $_.group -eq 'reply' -and -not $_.done }) + @(Get-ActiveReminders | Where-Object { [string]$_.id -match '^reply\|t:' } | ForEach-Object { Find-TodoItem ([string]$_.id).Substring(8) }) | Where-Object { $_ -and -not $h[$_.id] }) | Select-Object -First 1; if (-not $need) { return }
+  # 界面线程上只做很轻的事：最多每 5 秒看一次；候选从后台已经算好的快照里拿（快照里已经带上了预测），不再在界面线程上重算「今天」
+  $now = Get-Date; if ($script:PredNextCheck -and $now -lt $script:PredNextCheck) { return }; $script:PredNextCheck = $now.AddSeconds(5)
+  $d = $now.ToString('yyyy-MM-dd'); if ($script:PredDay -ne $d) { $script:PredDay = $d; $script:PredCount = 0 }; if ($script:PredCount -ge 40) { return }   # 一天最多 40 次
+  $cand = @(Get-PredCandidate); if (-not $cand.Count -or -not (Get-Permission 'cloud_text')) { return }
+  $h = Get-Preds; $need = @($cand | Where-Object { -not $h[$_.id] }) | Select-Object -First 1; if (-not $need) { return }   # 刚存好、快照还没刷新的那条不再重复要
   try { $script:PredTask = @{ id = $need.id; task = (Start-Claude (New-ReplyBody $(if ($need.conv) { $need.conv } else { $need.who }) $(if ($need.quote) { $need.quote } else { $need.what }))) }; $script:PredCount++ } catch {}
 }
-# 两边拿到的「今天」都带上预测回复
+# 需要预测回复、还没有预测的条目：从后台快照里找（「今天」里要你回的 + 「等你回复」的提醒对应的那条）
+function Get-PredCandidate {
+  $view = $script:ReadView; if (-not $view) { return }
+  $today = @($view.today | Where-Object { $_ })
+  $want = @($today | Where-Object { $_.group -eq 'reply' -and -not $_.done })
+  foreach ($r in @($view.mini.reminders | Where-Object { [string]$_.id -match '^reply\|t:' })) { $tid = ([string]$r.id).Substring(8); $want += @($today | Where-Object { $_.id -eq $tid } | Select-Object -First 1) }
+  $seen = @{}; foreach ($w in $want) { if ($w -and -not $w.preds -and -not $seen[$w.id]) { $seen[$w.id] = 1; $w } }
+}# 两边拿到的「今天」都带上预测回复
 function Find-TodoItem([string]$id) {
   if($script:ReadView){return (@($script:ReadView.today)|Where-Object id -eq $id|Select-Object -First 1)}
   Request-ReadSnapshot -Force
@@ -1229,6 +1253,7 @@ $script:tmReady = $false; $script:tmSize = $null
 function TmLog($s) { if ($env:SEC_TMDEBUG) { Add-Content (Join-Path $script:V2Data 'tm_debug.log') "$((Get-Date).ToString('HH:mm:ss.fff')) $s" } }
 function Hide-TrayMenu { if ($tm.Visible) { $tm.Hide(); if ($wvTm.CoreWebView2) { $wvTm.CoreWebView2.PostWebMessageAsJson('{"type":"hide"}') } } }
 function Show-TrayMenu {
+  if ([ExitLog]::Ending -or -not $wvTm -or -not $wvTm.CoreWebView2) { return }
   Update-Theme; $tm.BackColor = [SecTheme]::Surface
   $c = [Windows.Forms.Cursor]::Position; $wa = [Windows.Forms.Screen]::FromPoint($c).WorkingArea
   $w = $tm.Width; $h = $tm.Height
@@ -1236,6 +1261,7 @@ function Show-TrayMenu {
   $tm.Location = New-Object Drawing.Point $x, $y
   $script:tmMiniWasOpen = (Mini-Shown)   # 菜单上显示「打开小浮窗」还是「收起小浮窗」
   TmLog "show at $x,$y size $w x $h mini=$($script:tmMiniWasOpen)"; $tm.Show(); TmLog "front=$([MiniWin2]::Front($tm.Handle))"; $tm.Activate(); [void]$wvTm.Focus()
+  if (-not $wvTm.CoreWebView2) { return }   # 托盘菜单的显示组件没了（比如正在关机）：不报错
   $wvTm.CoreWebView2.PostWebMessageAsJson((@{ type = 'show'; paused = [bool](Get-Feature 'paused'); miniOpen = $script:tmMiniWasOpen; theme = [string](Read-Config).ui_theme } | ConvertTo-Json -Compress))
 }
 $tm.add_Deactivate({ TmLog 'deactivate'; Hide-TrayMenu })   # 点到别处就关
@@ -1286,7 +1312,7 @@ function Exit-Secretary {
 }
 # 点窗口右上角 ×：收起到托盘（不退出）；退出用托盘菜单“退出秘书”
 $script:quitting = $false
-$form.add_FormClosing({ param($s, $e) if (-not $script:quitting -and $e.CloseReason -eq 'UserClosing') { $e.Cancel = $true; Slide-Out } elseif (-not $script:quitting) { [ExitLog]::Write('window-closed', [string]$e.CloseReason) } })
+$form.add_FormClosing({ param($s, $e) if ($e.CloseReason -eq 'WindowsShutDown' -or [ExitLog]::Ending) { [ExitLog]::MarkEnding([string]$e.CloseReason); $script:quitting = $true; try { Stop-SecWorkers } catch {} } elseif (-not $script:quitting -and $e.CloseReason -eq 'UserClosing') { $e.Cancel = $true; Slide-Out } elseif (-not $script:quitting) { [ExitLog]::Write('window-closed', [string]$e.CloseReason) } })   # Windows 关机：不拦，干净退出
 
 # ———————————— 全局快捷键（默认 Ctrl+Alt+Shift+W，可在设置里改）：把微信叫过来 / 再按一下最小化 ————————————
 # 不用 Ctrl+Alt+W：那是微信电脑版自带的“显示微信窗口”快捷键。注册失败（被别的软件占用）时在界面和托盘里提示，不静默失效
@@ -1462,7 +1488,7 @@ $miniLost.add_Tick({
   Hide-Mini
 })
 $mini.add_Deactivate({ $miniLost.Stop(); $miniLost.Start() })
-$mini.add_FormClosing({ param($s, $e) if (-not $script:quitting) { $e.Cancel = $true; Hide-Mini } })   # × 只是收起
+$mini.add_FormClosing({ param($s, $e) if ($e.CloseReason -eq 'WindowsShutDown' -or [ExitLog]::Ending) { [ExitLog]::MarkEnding([string]$e.CloseReason); return }; if (-not $script:quitting) { $e.Cancel = $true; Hide-Mini } })   # × 只是收起
 $form.add_Activated({ Set-NoticeSeen })                                                  # 打开完整窗口也算看过提醒
 Set-MiniOpen $false
 # 启动时就把小浮窗的网页建好（不显示）：第一次打开就是完整画面，不会先黑一下
@@ -1532,7 +1558,7 @@ $poll.add_Tick({
   Step '叫微信过来' { if ($hotkey.Pressed) { $hotkey.Pressed = $false; Invoke-Summon } }
   Step '对话' { try { Poll-Turn } catch { if ($script:Turn) { Finish-Turn $null '这一步出错了' }; throw }; Poll-Replies; Poll-Sends; Step-Scheduled; Step-Events; Poll-Compaction }   # 出错也要把「秘书在想…」收掉，输入框能继续用
   Step '适配状态' { if(((Get-Date)-$script:lastWave).TotalSeconds -ge 5){$script:lastWave=Get-Date;Watch-Adapt} }
-  Step '显示组件' { if ($script:WvRestartAt -and (Get-Date) -ge $script:WvRestartAt) { $script:WvRestartAt = $null; if (-not (Test-Path (Join-Path $script:V2Data 'send_busy.flag'))) { Start-Process powershell -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'tools\重启秘书.ps1')) } else { $script:WvRestartAt = (Get-Date).AddSeconds(30) } } }   # 显示组件被更新换掉了：重开一次（正在发消息就等发完）
+  Step '显示组件' { Test-SuspendTask; if ($script:WvRestartAt -and ([ExitLog]::Ending -or $script:quitting)) { $script:WvRestartAt = $null }; if ($script:WvRestartAt -and (Get-Date) -ge $script:WvRestartAt) { $script:WvRestartAt = $null; if (-not (Test-Path (Join-Path $script:V2Data 'send_busy.flag'))) { Start-Process powershell -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'tools\重启秘书.ps1')) } else { $script:WvRestartAt = (Get-Date).AddSeconds(30) } } }   # 显示组件被更新换掉了：重开一次（正在发消息就等发完）
   Step '后台活' { Step-BgJob }   # 后台算好的结果在这里交回
   Step '日志整理' { if(-not $script:LogTrimAt -or (Get-Date) -ge $script:LogTrimAt){$script:LogTrimAt=(Get-Date).AddHours(24);[void](Start-SecWork -Key 'log-maintenance' -Modules (Get-ReadWorkerModules) -Code 'param($d) Limit-Logs')} }
   Step '已经回过' { Step-RepliedAlready }   # 你回过的消息自己从「需要你回」里去掉

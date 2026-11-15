@@ -4,6 +4,7 @@
 # 自带密钥和账号两条路各跑一次；不改任何设置（账号那条路是在测试里临时指定，不写配置）
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'turn_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_v2.ps1"; . "$v2\lib_账号.ps1"
 $T = Join-Path $env:TEMP 'secretary_turn_test'; Remove-Item $T -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force $T | Out-Null
 $script:ChatFile = "$T\chat.jsonl"; $script:ChatArchive = "$T\chat_archive.jsonl"; $script:SummaryFile = "$T\summary.txt"   # 临时对话，不写进真实的对话记录

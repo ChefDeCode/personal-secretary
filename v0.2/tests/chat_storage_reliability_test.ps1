@@ -3,6 +3,7 @@
 # 合成聊天存储测试：两个短命后台写入器，各8条。可-SkipProcesses只做故障与字段合并。
 param([switch]$SkipProcesses)
 $ErrorActionPreference='Stop';$v2=Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'chat_storage_reliability_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . (Join-Path $v2 'lib_聊天存储.ps1')
 function Protect([string]$Text){[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Text))}
 function Unprotect([string]$Text){[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Text))}

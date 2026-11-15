@@ -3,6 +3,7 @@
 # 发送程序的三道闸（用虚构的发送任务跑真的 发送.ps1，三种情况都在碰微信之前就停下；跑完把虚构任务和记录删掉）
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'send_guard_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_v2.ps1"
 $pass = 0; $fail = 0; function Check($n, $ok) { if ($ok) { $script:pass++ } else { $script:fail++ }; "  [$(if ($ok) { 'PASS' } else { 'FAIL' })] $n" }
 $tr = Join-Path $script:V2Data 'send_trace.jsonl'; $trBak = "$tr.guardtest"; if (Test-Path $tr) { Copy-Item $tr $trBak -Force }

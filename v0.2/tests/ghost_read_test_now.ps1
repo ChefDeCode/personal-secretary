@@ -4,6 +4,7 @@
 # 会动窗口状态，所以等你 2 分钟没动电脑才开始。结果写到 data\ghost_read_test.txt
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'ghost_read_test_now'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_v2.ps1"; . (Join-Path $script:Root 'lib_识别.ps1'); . "$v2\lib_虚拟桌面.ps1"; . "$v2\lib_原地读.ps1"
 Add-Type 'using System; using System.Runtime.InteropServices; public static class T9 { [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr a, int x, int y, int cx, int cy, uint f); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c); [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h); [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr h, int i); [DllImport("user32.dll")] static extern void mouse_event(uint f, int dx, int dy, uint d, UIntPtr e); public static void Nudge() { mouse_event(1, 1, 0, 0, UIntPtr.Zero); mouse_event(1, -1, 0, 0, UIntPtr.Zero); } [StructLayout(LayoutKind.Sequential)] struct LI { public uint cb, t; } [DllImport("user32.dll")] static extern bool GetLastInputInfo(ref LI l); public static uint Idle() { var l = new LI { cb = 8 }; GetLastInputInfo(ref l); return (uint)Environment.TickCount - l.t; } }'
 $out = Join-Path $script:V2Data 'ghost_read_test.txt'; Remove-Item $out -ErrorAction SilentlyContinue; function W($s) { Add-Content $out $s -Encoding UTF8 }

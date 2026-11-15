@@ -12,6 +12,7 @@ function Unprotect([string]$s){if(-not $s){return ''};[Text.Encoding]::UTF8.GetS
 function Write-Quality($x){}
 function Close-ResolvedReminders{}
 function Read-Jsonl([string]$name){$f=Join-Path $script:DataDir $name;if(Test-Path -LiteralPath $f){foreach($l in [IO.File]::ReadLines($f,[Text.Encoding]::UTF8)){if($l){$l|ConvertFrom-Json}}}}
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'task_reliability_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . (Join-Path $v2 'lib_提醒.ps1')
 . (Join-Path $v2 'lib_事项.ps1')
 $ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $v2 'lib_v2.ps1'),[ref]$null,[ref]$null)

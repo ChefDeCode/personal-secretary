@@ -3,6 +3,7 @@
 # 找文件测试：30 个虚构文件、6 个发件人（含名字和内容不符、重名、没下载的卡片、扫描版 PDF），全部在临时文件夹；不读真实文件、不发送
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent; $root = Split-Path $v2 -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'files_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$root\lib_识别.ps1"; . "$v2\lib_v2.ps1"
 $T = Join-Path $env:TEMP 'secretary_files_test'; Remove-Item $T -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force "$T\files" | Out-Null
 $script:AttData = $T; $script:PeopleFile = "$T\people.jsonl"; $script:FileIdxFile = "$T\files_index.jsonl"; $script:FileStatsFile = "$T\stats.json"

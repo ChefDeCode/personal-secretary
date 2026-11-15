@@ -14,6 +14,7 @@ $script:pass = 0; $script:fail = 0
 function Check([string]$name, [bool]$ok) { if ($ok) { $script:pass++ } else { $script:fail++ }; '[{0}] {1}' -f $(if ($ok) { 'PASS' } else { 'FAIL' }), $name }
 try {
   if ($Baseline) {
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'send_reliability_test'   # 测试用自己的临时数据文件夹，不碰真的数据
     $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $v2 '秘书.ps1'), [ref]$null, [ref]$null)
     foreach ($f in $ast.FindAll({param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -in 'Repair-SendingCards','Close-StuckScheduled'},$true)) { . ([scriptblock]::Create($f.Extent.Text)) }
     $script:card = [pscustomobject]@{id='c1';card=[pscustomobject]@{kind='send';status='sending';actionId='a1'}}

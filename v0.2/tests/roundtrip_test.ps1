@@ -3,6 +3,7 @@
 # 回归测试：每种存下来的记录，列表字段有 0 / 1 / 2 个元素时，存进去再读出来都还是列表（PowerShell 会把只有一个元素的数组拆开）
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'roundtrip_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_v2.ps1"
 $T = Join-Path $env:TEMP 'secretary_roundtrip'; Remove-Item $T -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force $T | Out-Null
 $script:ChatFile = "$T\chat.jsonl"; $script:ChatArchive = "$T\chat_archive.jsonl"; $script:PeopleFile = "$T\people.jsonl"; $script:FileIdxFile = "$T\files.jsonl"

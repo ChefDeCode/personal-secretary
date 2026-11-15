@@ -1,6 +1,7 @@
 ﻿# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 ChefDeCode
 $ErrorActionPreference='Stop';$v2=Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'scalar_reliability_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 $ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $v2 '秘书.ps1'),[ref]$null,[ref]$null)
 $f=$ast.Find({param($n)$n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Convert-BackgroundValue'},$true)
 . ([scriptblock]::Create($f.Extent.Text))

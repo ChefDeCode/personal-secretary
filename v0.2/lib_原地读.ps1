@@ -58,17 +58,18 @@ public static class Ghost7 {
   public static readonly System.Collections.Concurrent.ConcurrentQueue<string> RepopLog = new System.Collections.Concurrent.ConcurrentQueue<string>();
   // 放回去以后再盯 0.8 秒：微信放出来时自己排了一个「激活」，可能在我们放回去之后才发作，把它又弹出来。弹出来了（而且你没动）就再放回去，记一次
   public static volatile int Repops; public static volatile int LastHideTick; public static volatile int Gen;
+  public static volatile int RepopFgFail;   // 又弹出来以后，前台没能还回去的次数（值守用它来暂停透明读）
   public static void WatchRepop(IntPtr h, bool hidden, int ms) { WatchRepop(h, hidden, ms, IntPtr.Zero); }
   public static void WatchRepop(IntPtr h, bool hidden, int ms, IntPtr prevFg) {
     uint base0 = LastIn(); LastHideTick = Environment.TickCount; int gen = Gen;
     var t = new Thread(() => { int end = Environment.TickCount + ms; int n = 0; while (Environment.TickCount < end && Gen == gen && n < 3) {
       bool up = hidden ? IsWindowVisible(h) : !IsIconic(h); bool fg = GetForegroundWindow() == h;
-      if ((up || fg) && !Active && Gen == gen) { if (LastIn() != base0) break; ShowWindow(h, hidden ? 0 : 7); if (hidden) ShowWindow(h, 0); bool fgOk = true; if (prevFg != IntPtr.Zero && GetForegroundWindow() != prevFg) fgOk = SetForegroundWindow(prevFg); Repops++; n++; RepopLog.Enqueue((Environment.TickCount - LastHideTick) + "ms:" + (fgOk ? "fg-ok" : "fg-not-restored")); Thread.Sleep(40); continue; }   // 你没动：放回去，前台也还给你原来的窗口；它要是又弹，再放（最多 3 次）。你动了就不管（那是你的操作）
+      if ((up || fg) && !Active && Gen == gen) { if (LastIn() != base0) break; ShowWindow(h, hidden ? 0 : 7); if (hidden) ShowWindow(h, 0); bool fgOk = true; if (prevFg != IntPtr.Zero && GetForegroundWindow() != prevFg) fgOk = SetForegroundWindow(prevFg); if (!fgOk) RepopFgFail++; Repops++; n++; RepopLog.Enqueue((Environment.TickCount - LastHideTick) + "ms:" + (fgOk ? "fg-ok" : "fg-not-restored")); Thread.Sleep(40); continue; }   // 你没动：放回去，前台也还给你原来的窗口；它要是又弹，再放（最多 3 次）。你动了就不管（那是你的操作）
       Thread.Sleep(15); } }); t.IsBackground = true; t.Start(); }
 }
 // 旧名字（值守和测试里用的 [Ghost]）指向同一个实现
 public static class Ghost { public static bool Active { get { return Ghost7.Active; } } public static bool UserTouched { get { return Ghost7.UserTouched; } } public static bool Show(IntPtr h) { return Ghost7.Show(h); } public static void Hide() { Ghost7.Hide(); } }
-public static class Ghost2 { public static bool Active { get { return Ghost7.Active; } } public static bool UserTouched { get { return Ghost7.UserTouched; } } public static bool LockOk { get { return Ghost7.LockOk; } } public static int ShownAt { get { return Ghost7.ShownAt; } } public static bool WasHidden { get { return Ghost7.WasHidden; } } public static int Repops { get { return Ghost7.Repops; } }
+public static class Ghost2 { public static int RepopFgFail { get { return Ghost7.RepopFgFail; } } public static bool Active { get { return Ghost7.Active; } } public static bool UserTouched { get { return Ghost7.UserTouched; } } public static bool LockOk { get { return Ghost7.LockOk; } } public static int ShownAt { get { return Ghost7.ShownAt; } } public static bool WasHidden { get { return Ghost7.WasHidden; } } public static int Repops { get { return Ghost7.Repops; } }
   public static bool Show(IntPtr h) { return Ghost7.Show(h); } public static void Hide() { Ghost7.Hide(); } public static uint IdleMs() { return Ghost7.IdleMs(); } public static IntPtr Fg() { return Ghost7.Fg(); } public static bool Back(IntPtr h) { return Ghost7.Back(h); } public static uint PidOf(IntPtr h) { return Ghost7.PidOf(h); }
   public static bool NeedsGhost(IntPtr h) { return Ghost7.NeedsGhost(h); } public static IntPtr HiddenMain(uint[] p, int w, int h) { return Ghost7.HiddenMain(p, w, h); } public static bool IsIconic(IntPtr h) { return Ghost7.IsIconic(h); } public static bool IsWindowVisible(IntPtr h) { return Ghost7.IsWindowVisible(h); } public static void WatchRepop(IntPtr h, bool hidden, int ms) { Ghost7.WatchRepop(h, hidden, ms); } public static void WatchRepop(IntPtr h, bool hidden, int ms, IntPtr prevFg) { Ghost7.WatchRepop(h, hidden, ms, prevFg); } }
 '@ }
@@ -89,7 +90,7 @@ function Resolve-GhostFgChange([IntPtr]$ghostWin, [IntPtr]$fgBefore) {
   $who = Get-FgChangeWho $gp $np; $restore = Test-GhostRestoreFg $who $user
   if ($restore -and $fgBefore -ne [IntPtr]::Zero) { [void][Ghost2]::Back($fgBefore) }
   $rec = [ordered]@{ ts = (Get-Date).ToString('s'); offset_ms = $offset; lock = $lock; who = $who; user_input = $user; restored = $restore }
-  try { $lf = Join-Path $(if ($script:V2Data) { $script:V2Data } else { Join-Path $PSScriptRoot 'data' }) 'ghost_fg.jsonl'; [IO.File]::AppendAllLines($lf, [string[]]@(($rec | ConvertTo-Json -Compress))) } catch {}
+  try { $lf = Join-Path $(if ($script:V2Data) { $script:V2Data } else { Join-Path $PSScriptRoot 'data' }) 'ghost_fg.jsonl'; if ($env:SECRETARY_TEST -and (Get-Command Test-TestWriteBlocked -ErrorAction SilentlyContinue) -and (Test-TestWriteBlocked $lf)) { throw 'test-guard' }; [IO.File]::AppendAllLines($lf, [string[]]@(($rec | ConvertTo-Json -Compress))) } catch {}
   $rec
 }# 读一个窗口：看得见 → 直接读；最小化 / 隐藏 → 透明地放出来读，读完放回原样。
 # 你在用电脑（$MinIdleMs 内动过）就先不放出来；放出来时前台变了、或者你一碰鼠标键盘 → 马上放回，这一次不算
@@ -142,8 +143,8 @@ function Invoke-GhostSnap([IntPtr]$h, [int]$PaintMs = 200, [int]$MinIdleMs = 500
   $fgNow = [Ghost2]::Fg(); $fgChanged = $fgNow -ne $fg; $restored = $false; $who = ''
   if ($fgChanged) { $who = Get-FgChangeWho ([Ghost2]::PidOf($h)) ([Ghost2]::PidOf($fgNow)); if ($who -eq 'ours' -and -not $touched -and [Ghost2]::IdleMs() -gt $vis) { $restored = [Ghost2]::Back($fg) } }   # 是它自己抢的、你没动：还回去；别的程序 / 你自己切的：不动
   $rec = [ordered]@{ ts = (Get-Date).ToString('s'); mode = 'snap'; state = $(if ($was) { 'tray' } else { 'minimized' }); visible_ms = $vis; show_ms = $showMs; capture_ms = @($capMsList); hide_ms = $hideMs; over_cap = $overCap; painted = [bool]$bmp; tries = $tries
-    fg_changed = $fgChanged; fg_who = $who; fg_restored = $restored; user_input = $touched; repops_before = $rep0; repops_since_last = @($repLog) }
-  try { $lf = Join-Path $(if ($script:V2Data) { $script:V2Data } else { Join-Path $PSScriptRoot 'data' }) 'ghost_reads.jsonl'; [IO.File]::AppendAllLines($lf, [string[]]@(($rec | ConvertTo-Json -Compress))) } catch {}
+    fg_changed = $fgChanged; fg_who = $who; fg_restored = $restored; user_input = $touched; repops_before = $rep0; repops_since_last = @($repLog); lock = [bool][Ghost2]::LockOk }
+  try { $lf = Join-Path $(if ($script:V2Data) { $script:V2Data } else { Join-Path $PSScriptRoot 'data' }) 'ghost_reads.jsonl'; if ($env:SECRETARY_TEST -and (Get-Command Test-TestWriteBlocked -ErrorAction SilentlyContinue) -and (Test-TestWriteBlocked $lf)) { throw 'test-guard' }; [IO.File]::AppendAllLines($lf, [string[]]@(($rec | ConvertTo-Json -Compress))) } catch {}
   if ($touched) { if ($bmp) { $bmp.Dispose() }; return @{ ok = $false; why = '你动了电脑，已放回'; rec = $rec } }
   if ($overCap) { if ($bmp) { $bmp.Dispose() }; return @{ ok = $false; why = '截图太慢，已放回，这次不读'; rec = $rec; slow = $true } }
   if (-not $bmp) { return @{ ok = $false; why = '没来得及画出来，已放回，下次再试'; rec = $rec } }

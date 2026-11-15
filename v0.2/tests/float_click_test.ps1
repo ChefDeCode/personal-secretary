@@ -4,6 +4,7 @@
 $ErrorActionPreference = 'Stop'
 $v2 = (Split-Path $PSScriptRoot -Parent); $d = "$v2\data"; $cfgF = (Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'config.json')
 . "$PSScriptRoot\float_hit.ps1" -KeepOpen *> $null
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'float_click_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$PSScriptRoot\lib_测试输入.ps1"   # 真实点击都经过保护   # 借用 FH 类型和 MiniH（会打开一次浮窗）
 $ev = [Threading.EventWaitHandle]::OpenExisting('Local\SecretaryPanelToggle'); if (-not ([FH]::GetWindowLong((MiniH), -20) -band 0x20)) { [void]$ev.Set(); Start-Sleep -Milliseconds 700 }   # 按实际状态：开着就先关上
 Add-Type @'

@@ -2,6 +2,7 @@
 # Copyright (C) 2026 ChefDeCode
 # 截图最多 1 GB：超了从最旧的截图删起，删到上限以下；记录留着标成 pruned；没超就一张不动。只动截图文件夹
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'att_cap_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 $v2 = Split-Path $PSScriptRoot -Parent; . "$v2\lib_v2.ps1"
 $pass = 0; $fail = 0; function Check($n, $ok) { if ($ok) { $script:pass++ } else { $script:fail++ }; "  [$(if ($ok) { 'PASS' } else { 'FAIL' })] $n" }
 $T = Join-Path $env:TEMP 'secretary_attcap'; Remove-Item $T -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force "$T\images" | Out-Null

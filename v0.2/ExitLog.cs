@@ -4,6 +4,8 @@
 using System; using System.IO; using System.Text;
 public static class ExitLog {
   public static string LogPath, StatePath; static readonly object L = new object();
+  public static volatile bool Ending;   // Windows 正在关机 / 注销：不再重开显示组件，不拦关机
+  public static void MarkEnding(string reason) { if (Ending) return; Ending = true; Write("system-shutdown", reason); MarkClean("系统关机"); }
   static string Esc(string s) { return (s ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", " ").Replace("\n", " "); }
   public static void Write(string kind, string detail) {
     try { lock (L) { File.AppendAllText(LogPath, "{\"ts\":\"" + DateTime.Now.ToString("s") + "\",\"pid\":" + System.Diagnostics.Process.GetCurrentProcess().Id + ",\"kind\":\"" + Esc(kind) + "\",\"detail\":\"" + Esc(detail) + "\"}\r\n", new UTF8Encoding(false)); } } catch { } }
@@ -17,6 +19,6 @@ public static class ExitLog {
   public static void Install() {
     AppDomain.CurrentDomain.UnhandledException += (s, e) => Write("unhandled-exception", Describe(e.ExceptionObject) + (e.IsTerminating ? " (terminating)" : ""));
     System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (s, e) => { Write("unobserved-task", Describe(e.Exception)); e.SetObserved(); };
-    Microsoft.Win32.SystemEvents.SessionEnding += (s, e) => { Write("session-ending", e.Reason.ToString()); MarkClean("session-ending"); };
+    Microsoft.Win32.SystemEvents.SessionEnding += (s, e) => MarkEnding(e.Reason.ToString());
   }
 }

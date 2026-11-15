@@ -177,7 +177,17 @@ function Get-Permission([string]$name) {
 }
 
 # 秘书名字：读 config.json 的 "name"，缺省“秘书”
-$script:CfgPath = Join-Path $PSScriptRoot 'config.json'
+$script:CfgPath = if ($env:SECRETARY_TEST_DATA) { Join-Path $env:SECRETARY_TEST_DATA 'config.json' } else { Join-Path $PSScriptRoot 'config.json' }   # 测试时用测试自己的设置副本
+# 测试保护：在测试里（SECRETARY_TEST=1）不许往真正的数据文件夹写日志；只许写临时文件夹、测试副本（test-runs）或测试数据文件夹
+function Test-TestWriteBlocked([string]$Path) {
+  if (-not $env:SECRETARY_TEST -or -not $Path) { return $false }
+  $full = try { [IO.Path]::GetFullPath($Path) } catch { return $true }
+  foreach ($okRoot in @([IO.Path]::GetTempPath(), $env:TEMP, $env:SECRETARY_TEST_DATA)) { if ($okRoot -and $full.StartsWith([IO.Path]::GetFullPath($okRoot), [StringComparison]::OrdinalIgnoreCase)) { return $false } }
+  if ($full -match '\\test-runs\\') { return $false }
+  $script:TestGuardBlocked = [int]$script:TestGuardBlocked + 1
+  try { [Console]::Error.WriteLine("[test-guard] refused a write to the real data folder: $([IO.Path]::GetFileName($full))") } catch {}
+  $true
+}
 function Get-SecretaryName {
   try { $n = (Get-Content $script:CfgPath -Raw -Encoding UTF8 | ConvertFrom-Json).name; if ($n) { return [string]$n } } catch {}
   '秘书'

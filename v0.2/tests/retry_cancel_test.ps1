@@ -3,6 +3,7 @@
 # 发送卡「重试」「取消」测试（在临时对话里，不发送任何消息：Start-Send 换成只记录）：旧卡片（缺字段）、新卡片、连点两次、失败后取消再重试
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'retry_cancel_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_v2.ps1"
 $T = Join-Path $env:TEMP 'secretary_retry_test'; Remove-Item $T -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force "$T\actions" | Out-Null
 $script:ChatFile = "$T\chat.jsonl"; $script:ChatArchive = "$T\chat_archive.jsonl"; $script:ActDir = "$T\actions"

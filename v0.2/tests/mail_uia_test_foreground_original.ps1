@@ -3,6 +3,7 @@
 # Outlook 原地读（UIA）用假邮件窗口测：列表行、未读、打开的邮件正文；不点不打字、不抢前台、最小化时不读
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'mail_uia_test_foreground_original'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_v2.ps1"; . (Join-Path $script:Root 'lib_识别.ps1'); . "$v2\lib_虚拟桌面.ps1"; . "$v2\lib_邮件读.ps1"
 Add-Type 'using System; using System.Runtime.InteropServices; public static class MT { [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c); }'
 $pass = 0; $fail = 0; function Check($n, $ok) { if ($ok) { $script:pass++ } else { $script:fail++ }; "  [$(if ($ok) { 'PASS' } else { 'FAIL' })] $n" }

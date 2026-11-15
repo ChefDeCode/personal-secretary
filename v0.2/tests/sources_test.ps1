@@ -7,6 +7,7 @@ $v2 = Split-Path $PSScriptRoot -Parent; $realRoot = Split-Path $v2 -Parent
 $pass = 0; $fail = 0; function Check($n, $ok) { if ($ok) { $script:pass++ } else { $script:fail++ }; "  [$(if ($ok) { 'PASS' } else { 'FAIL' })] $n" }
 $T = Join-Path $env:TEMP 'secretary_sources'; Remove-Item $T -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force "$T\v0.2\data", "$T\data" | Out-Null
 $root = $T; $data = "$T\data"; $Interval = 10; $Process = 'NoSuchApp_x'; $stats = @{ 错误 = 0; 最后错误 = '' }
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'sources_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 $ast = [Management.Automation.Language.Parser]::ParseFile("$realRoot\12_值守.ps1", [ref]$null, [ref]$null)
 foreach ($fn in $ast.FindAll({ param($a) $a -is [Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -in 'Get-WatchCfg', 'Get-SrcState', 'Set-SrcResult', 'Invoke-Source', 'Invoke-Sources', 'Set-WeChatSource', 'Write-SourcesStatus' }, $true)) { . ([scriptblock]::Create($fn.Extent.Text)) }
 $asg = $ast.FindAll({ param($a) $a -is [Management.Automation.Language.AssignmentStatementAst] -and $a.Left.Extent.Text -eq '$script:Sources' }, $true) | Select-Object -First 1

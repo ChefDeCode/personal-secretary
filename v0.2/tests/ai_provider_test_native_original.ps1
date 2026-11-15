@@ -4,6 +4,7 @@
 param([string]$DeepSeekKeyFile = '')
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'ai_provider_test_native_original'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_v2.ps1"; . "$v2\lib_账号.ps1"
 $T = Join-Path $env:TEMP 'secretary_ai_test'; Remove-Item $T -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force $T | Out-Null
 Copy-Item $script:CfgPath "$T\config.json"; $realCfg = $script:CfgPath; $script:CfgPath = "$T\config.json"   # 用测试副本，不改用户的设置

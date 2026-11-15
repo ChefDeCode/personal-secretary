@@ -5,6 +5,7 @@
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
 $T = Join-Path $env:TEMP 'secretary_update_test'; Remove-Item $T -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force "$T\cfg" | Out-Null
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'update_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_v2.ps1"; Copy-Item $script:CfgPath "$T\cfg\config.json"; $script:CfgPath = "$T\cfg\config.json"; $script:AcctDir = "$T\cfg"
 . "$v2\lib_账号.ps1"; . "$v2\lib_商店.ps1"; . "$v2\lib_更新.ps1"
 function Assert($c, $l) { $script:tot++; if ($c) { $script:ok++ }; "  [{0}] {1}" -f $(if ($c) { 'PASS' } else { 'FAIL' }), $l }; $script:ok = 0; $script:tot = 0

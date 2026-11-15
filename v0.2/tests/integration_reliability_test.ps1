@@ -6,6 +6,7 @@ $v2=Split-Path $PSScriptRoot -Parent
 $script:pass=0;$script:fail=0
 function Check([string]$Name,[bool]$Ok){if($Ok){$script:pass++}else{$script:fail++};'[{0}] {1}' -f $(if($Ok){'PASS'}else{'FAIL'}),$Name}
 # Preserve complete function definitions, including param clauses preceding the body.
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'integration_reliability_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 $mainAst=[Management.Automation.Language.Parser]::ParseFile((Join-Path $v2 '秘书.ps1'),[ref]$null,[ref]$null)
 $needed=@('Get-ReadWorkerModules','Request-ReadSnapshot','Watch-Watcher','Sync-Watcher','Tick-Memory','Finish-MemReflect','Tick-Proactive','Step-Events','Start-Claude','Convert-BackgroundValue')
 foreach($fn in $mainAst.FindAll({param($n)$n -is [Management.Automation.Language.FunctionDefinitionAst] -and $needed -contains $n.Name},$true)){. ([scriptblock]::Create($fn.Extent.Text))}

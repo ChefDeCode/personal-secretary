@@ -4,7 +4,7 @@
 # 只在本机进程内解密，数据通过 WebView2 的 PostWebMessage 交给页面，不落盘明文、不联网。
 # 依赖 lib_窗口工具.ps1（开关定义与读取），调用方需先 dot-source 它。
 Add-Type -AssemblyName System.Security
-$script:DataDir = Join-Path $PSScriptRoot 'data'
+$script:DataDir = if ($env:SECRETARY_TEST_DATA) { Join-Path $env:SECRETARY_TEST_DATA 'data' } else { Join-Path $PSScriptRoot 'data' }   # 测试时用测试自己的数据文件夹
 $script:Entropy = [Text.Encoding]::UTF8.GetBytes('secretary-v0.1')   # 与 12_值守.ps1 相同
 function Unprotect([string]$b) { if (-not $b) { return '' }; try { [Text.Encoding]::UTF8.GetString([Security.Cryptography.ProtectedData]::Unprotect([Convert]::FromBase64String($b), $script:Entropy, 'CurrentUser')) } catch { '' } }
 function Read-Jsonl([string]$name, [int]$tail = 0) {

@@ -45,6 +45,18 @@ public static class Rec {
     for (int y = (int)(h * .25); y > 0; y--) if (isRule(y)) { top = y + 2; break; }
     for (int y = (int)(h * .55); y < h; y++) if (isRule(y)) { bottom = y - 2; break; }
     return new double[] { (double)left / w, (double)top / h, (double)bottom / h, bgL }; }
+  // 已知聊天区左边界（从标题的位置推出来）时重新标定上下边界：背景亮度取聊天区里最常见的亮度（不用全窗口右半边的中位数——
+  // 宽窗口时右半边可能大片是浅色内容，中位数会偏，整个版面就估错了）。titleBottom = 标题那行的下沿
+  public static double[] LayoutAt(Bitmap b, int left, int titleBottom) {
+    int w = b.Width, h = b.Height; var px = Pixels(b); var hist = new int[256];
+    for (int y = (int)(h * .3); y < h * .8; y += 6) for (int x = left + 20; x < Math.Min(w - 20, left + 600); x += 8) hist[Lum(px[y * w + x])]++;
+    int bgL = 0; for (int i = 1; i < 256; i++) if (hist[i] > hist[bgL]) bgL = i;
+    Func<int, bool> isRule = y => { int first = Lum(px[y * w + left + 10]); if (Math.Abs(first - bgL) < 3) return false;
+      for (int x = left + 10; x < w - 10; x += 16) if (Math.Abs(Lum(px[y * w + x]) - first) > 3) return false; return true; };
+    int top = Math.Min(h - 1, titleBottom + 20), bottom = (int)(h * .92);
+    for (int y = titleBottom; y < Math.Min(h * .3, titleBottom + 120); y++) if (isRule(y)) { top = y + 2; break; }
+    for (int y = (int)(h * .55); y < h; y++) if (isRule(y)) { bottom = y - 2; break; }
+    return new double[] { (double)left / w, (double)top / h, (double)bottom / h, bgL }; }
   // 图片块：同 10_后台OCR读取.ps1
   public static List<Rectangle> FindImages(Bitmap b, int cell, int minColors, int minSize, int bgLum) {
     int gw = b.Width / cell, gh = b.Height / cell; var hit = new bool[gw, gh]; var px = Pixels(b); var seen = new HashSet<int>();
@@ -190,15 +202,28 @@ function Join-ChatLines($items, [double]$dpi) {
 # 识别一次：返回 @{ 会话 = 标题; 消息 = @(...); 列表 = @(...) }
 #   消息：发送方（我 / 对方 / 群成员名）、文本、是否图片、显示时间（最近一条时间分隔条）
 #   列表：会话名、预览、时间、是否未读
-function Read-WeChat([IntPtr]$h, [Drawing.Bitmap]$full) {
+# 标题条没认出来时的第二次找法（只在「标题来源 none」时做）：把顶部一整条（导航栏右边到窗口 80% 宽、标题那么高）认一遍，
+# 去掉搜索框和只有符号的行（加号之类的按钮），取搜索框右边最靠左的那一行。返回那一行（文字和位置），找不到返回 $null
+function Find-TitleInBand([Drawing.Bitmap]$full, [double]$dpi, [int]$ct) {
+  $nav = [int](60 * $dpi); $bw = [int]($full.Width * 0.8) - $nav; $bh = [Math]::Min($full.Height, [Math]::Max($ct, [int](90 * $dpi)))
+  if ($bw -le 20 -or $bh -le 10) { return $null }
+  $bb = Crop $full (New-Object Drawing.Rectangle $nav, 0, $bw, $bh); $bl = @(Get-Lines (Invoke-Ocr $bb)); $bb.Dispose()
+  $search = @($bl | Where-Object { $_.文本 -match '搜索' } | Sort-Object x1 -Descending)[0]
+  $minX = if ($search) { $search.x1 } else { 0 }
+  # 只有一个非汉字的字符：多半是按钮图标被认成了字母（搜索框右边的「+」之类），不当标题
+  $cand = @($bl | Where-Object { $c = ($_.文本 -replace '[\s\p{P}\p{S}]', ''); $_.文本 -notmatch '搜索' -and $c -and -not ($c.Length -eq 1 -and $c -notmatch '[一-鿿]') -and $_.x0 -ge $minX } | Sort-Object x0)
+  if (-not $cand.Count) { return $null }
+  $t = $cand[0]; [pscustomobject]@{ 文本 = $t.文本; x0 = [int]($t.x0 + $nav); y = [int]$t.y; h = [int]$t.h }
+}
+function Read-WeChat([IntPtr]$h, [Drawing.Bitmap]$full, [double[]]$LayoutOverride = $null) {
   $w = $full.Width; $ht = $full.Height
   $dpi = [WinTools]::Dpi($h) / 96.0
-  $lay = [Rec]::Layout($full); $bgLum = [int]$lay[3]
+  $lay = if ($LayoutOverride) { $LayoutOverride } else { [Rec]::Layout($full) }; $bgLum = [int]$lay[3]
   $cl = [int]($w * $lay[0]); $ct = [int]($ht * $lay[1]); $cb = [int]($ht * $lay[2])
 
   # —— 当前会话标题：聊天区上方标题栏 ——
   $titleRect = New-Object Drawing.Rectangle $cl, 0, ([int](($w - $cl) * 0.6)), $ct   # 一整条：只裁 56 DIP 那么窄时认不出字（2026-11-03 深色模式、两个字的备注名）
-  $title = ''
+  $title = ''; $tl = @()
   if ($titleRect.Height -gt 10) {
     $tb = Crop $full $titleRect; $tl = @(Get-Lines (Invoke-Ocr $tb)); $tb.Dispose()
     # 标题在标题栏左侧、最靠上：取起点在左 40% 内、y 最小的一行（不能取“最高”的一行，标题区下沿可能压到聊天里的图片）
@@ -255,13 +280,29 @@ function Read-WeChat([IntPtr]$h, [Drawing.Bitmap]$full) {
   }
   $lb.Dispose()
   # 选中项 = 底色与其余条目中位数差别最大、且差值明显（> 6）的那一条
-  $list = @($list)
+  $list = @($list); $selDiff = -1
   if ($list.Count -ge 2) {
     $med = ($list.底色 | Sort-Object)[[int]($list.Count / 2)]
     $sel = $list | Sort-Object { -[Math]::Abs($_.底色 - $med) } | Select-Object -First 1
-    if ([Math]::Abs($sel.底色 - $med) -gt 6) { $sel.选中 = $true }
+    $selDiff = [int][Math]::Abs($sel.底色 - $med)
+    if ($selDiff -gt 6) { $sel.选中 = $true }
   }
-  # 标题没认出来：用会话列表里选中的那一行的名字（打开着的就是它）；都没有才留空，之后整理时不写名字
+  # 标题没认出来：用会话列表里选中的那一行的名字（打开着的就是它）；都没有才留空（值守这一轮就不存，见 Save-WeChatRead）
   $titleFrom = 'title'; if (-not $title) { $sel = @($list | Where-Object 选中)[0]; if ($sel -and $sel.会话) { $title = ([string]$sel.会话 -replace '\s*[（(]\d+[)）]\s*$', '').Trim(); $titleFrom = 'list-row' } else { $titleFrom = 'none' } }
-  @{ 会话 = $title; 消息 = @($msgs); 列表 = @($list); 版面 = $lay; 标题来源 = $titleFrom }
+  # 诊断（只有数字，不含任何文字）：版面比例、标题条高度、标题条认出几行、列表几行、选中行底色差（-1 = 不到两行没法比）
+  $diag = [ordered]@{ lay = @([Math]::Round([double]$lay[0], 3), [Math]::Round([double]$lay[1], 3), [Math]::Round([double]$lay[2], 3)); w = $w; h = $ht; dpi = [Math]::Round($dpi, 2); title_h = [int]$titleRect.Height; title_lines = @($tl).Count; list_rows = $list.Count; sel_diff = $selDiff; retry = $(if ($LayoutOverride) { 'band' } else { '' }) }
+  # 都没认出来（宽窗口时版面常估错：聊天区左边界被估到右边去了，标题条就裁偏了）：在顶部一整条里再找一次标题，
+  # 找到了就按标题的位置重新定版面，整页重认一次（只在这种情况多做；窄到只剩会话列表、根本没有打开的聊天时，本来就找不到，照旧 none）
+  if ($titleFrom -eq 'none' -and -not $LayoutOverride) {
+    $bt = Find-TitleInBand $full $dpi $ct
+    if ($bt) {
+      foreach ($m in $msgs) { if ($m.图像) { $m.图像.Dispose() } }
+      $ov = [Rec]::LayoutAt($full, [Math]::Max(1, $bt.x0 - [int](18 * $dpi)), $bt.y + $bt.h)
+      $r2 = Read-WeChat $h $full $ov
+      $bn = ($bt.文本 -replace '\s*[（(]\d+[)）]\s*$', '').Trim(); if ($bn) { $r2.会话 = $bn }   # 名字用顶部整条里认出的那一行：窄条里短名字（两个字的备注名）常认错，整条里认得准
+      if ($r2.会话) { $r2.标题来源 = 'title-band'; return $r2 }
+      $diag.retry = 'band-failed'
+    } else { $diag.retry = 'band-none' }
+  }
+  @{ 会话 = $title; 消息 = @($msgs); 列表 = @($list); 版面 = $lay; 标题来源 = $titleFrom; 诊断 = $diag }
 }

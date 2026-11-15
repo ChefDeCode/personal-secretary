@@ -23,6 +23,7 @@ function New-Install([string]$name) {
   $root }
 function Set-Changes([string]$root) {
   # 和秘书里一样经过「改动记录」：开机自启、注册表、环境变量、临时文件夹
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'uninstall_test'   # 测试用自己的临时数据文件夹，不碰真的数据
   . "$root\v0.2\lib_改动记录.ps1"; $script:ChangeJournal = "$root\v0.2\data\changes.jsonl"
   Set-JournaledStartupLink "$startup\个人秘书.lnk" $true "$root\v0.2\秘书.exe" '-Tray' "$root\v0.2"
   Set-JournaledHkcuValue $regKey 'Mode' 'on'; Set-JournaledUserEnv $envName 'test-value'

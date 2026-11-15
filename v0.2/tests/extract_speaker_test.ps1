@@ -7,6 +7,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 function Assert($c, $l) { $script:tot++; if ($c) { $script:ok++ }; "  [{0}] {1}" -f $(if ($c) { 'PASS' } else { 'FAIL' }), $l }; $script:ok = 0; $script:tot = 0
 # 从值守脚本里只取需要的函数和提示词（不运行它的主循环）
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'extract_speaker_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 $ast = [Management.Automation.Language.Parser]::ParseFile("$root\12_值守.ps1", [ref]$null, [ref]$null)
 foreach ($fn in $ast.FindAll({ param($a) $a -is [Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -in 'Get-SpeakerCode', 'Repair-TodoSpeaker', 'Invoke-LocalRules', 'Invoke-Claude', 'Get-ApiKey' }, $true)) { . ([scriptblock]::Create($fn.Extent.Text)) }
 foreach ($as in $ast.FindAll({ param($a) $a -is [Management.Automation.Language.AssignmentStatementAst] -and $a.Left.Extent.Text -in '$sysPrompt', '$schema' }, $false)) { . ([scriptblock]::Create($as.Extent.Text)) }

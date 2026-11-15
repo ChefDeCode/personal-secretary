@@ -3,6 +3,7 @@
 # 「在办的事」：虚构卡片（不是真聊天）算出状态对不对
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'activity_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_v2.ps1"
 $now = Get-Date; $o = { param($m) $now.AddMinutes(-$m).ToString('o') }
 $script:Fake = @(

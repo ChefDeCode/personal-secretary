@@ -100,9 +100,30 @@ $wpx = [int]($W * $scale); $hpx = [int]($H * $scale)
 $key = [Drawing.Color]::FromArgb(150, 139, 126)   # 颜色键取暖灰（介于浅/深色线色之间），线边缘抗锯齿不会出现明显的黑/白毛边
 $form = New-Object EdgeForm
 $form.BackColor = $key; $form.TransparencyKey = $key; $form.Text = '秘书小波浪'
-$wv = New-Object Microsoft.Web.WebView2.WinForms.WebView2; $wv.Dock = 'Fill'; $wv.DefaultBackgroundColor = [Drawing.Color]::Transparent
-$cp = New-Object Microsoft.Web.WebView2.WinForms.CoreWebView2CreationProperties; $cp.UserDataFolder = Join-Path $dataV2 'webview2_edge'; $wv.CreationProperties = $cp
-$form.Controls.Add($wv)
+# 显示组件和秘书主窗口共用同一个数据文件夹（webview2）：两边共用一套浏览器进程，省一整套（浏览器、GPU、网络、存储）进程
+# 主程序的浏览器进程重开时，这里的页面会断：过 3 秒自己重建一次（10 分钟内最多 5 次）；主程序已经退出就不重建
+$script:EdgeUdf = Join-Path $dataV2 'webview2'
+function New-EdgeWebView {
+  $w = New-Object Microsoft.Web.WebView2.WinForms.WebView2; $w.Dock = 'Fill'; $w.DefaultBackgroundColor = [Drawing.Color]::Transparent
+  $p = New-Object Microsoft.Web.WebView2.WinForms.CoreWebView2CreationProperties; $p.UserDataFolder = $script:EdgeUdf; $w.CreationProperties = $p
+  if ($script:OnEdgeInit) { $w.add_CoreWebView2InitializationCompleted($script:OnEdgeInit) }
+  $form.Controls.Add($w); $script:wv = $w; $w
+}
+$script:EdgeResets = New-Object System.Collections.Generic.List[datetime]; $script:EdgeResetTimer = $null
+function Request-EdgeReset([string]$kind) {
+  if ($kind -notin 'BrowserProcessExited', 'RenderProcessExited', 'RenderProcessUnresponsive') { return $false }
+  if ($script:EdgeResetTimer) { return $false }
+  $cut = (Get-Date).AddMinutes(-10); $recent = @($script:EdgeResets | Where-Object { $_ -gt $cut }); if ($recent.Count -ge 5) { return $false }
+  $t = New-Object Windows.Forms.Timer; $t.Interval = 3000; $t.add_Tick({ $script:EdgeResetTimer.Stop(); $script:EdgeResetTimer.Dispose(); $script:EdgeResetTimer = $null; Reset-EdgeWebView })
+  $script:EdgeResetTimer = $t; $t.Start(); $true
+}
+function Reset-EdgeWebView {
+  if ($OwnerPid -and -not (Get-Process -Id $OwnerPid -ErrorAction SilentlyContinue)) { $form.Close(); return }   # 秘书已经退出：跟着收掉
+  $script:EdgeResets.Add((Get-Date)); $old = $script:wv; $ctl.Web = $null
+  try { $form.Controls.Remove($old); $old.Dispose() } catch {}
+  $n = New-EdgeWebView; [void]$n.EnsureCoreWebView2Async($null)
+}
+$wv = New-EdgeWebView
 $ctl = New-Object EdgeCtl; $ctl.F = $form; $ctl.Scale = $scale; $ctl.H = $H
 
 # —— 位置：贴左/右边（默认右边、垂直居中），或自由摆放（设置里关掉“贴边”）——
@@ -178,7 +199,7 @@ function Apply-Test($msg) {
 }
 
 # —— 页面消息：点一下 = 开/收小浮窗；拖动 = 窗口跟手，松手贴回最近的一边 ——
-$wv.add_CoreWebView2InitializationCompleted({
+$script:OnEdgeInit = {
   param($s, $e)
   if (-not $e.IsSuccess) { $form.Close(); return }
   $c = $wv.CoreWebView2; $ctl.Web = $c
@@ -186,6 +207,7 @@ $wv.add_CoreWebView2InitializationCompleted({
   $c.SetVirtualHostNameToFolderMapping('secretary.local', (Join-Path $v2 'ui'), [Microsoft.Web.WebView2.Core.CoreWebView2HostResourceAccessKind]::Deny)
   $c.add_NavigationStarting({ param($s2, $e2) if (-not $e2.Uri.StartsWith('https://secretary.local/')) { $e2.Cancel = $true } })
   $c.add_NewWindowRequested({ param($s2, $e2) $e2.Handled = $true })
+  $c.add_ProcessFailed({ param($s2, $e2) try { Add-Content (Join-Path $dataV2 'exit_log_edge.jsonl') (@{ ts = (Get-Date).ToString('s'); kind = 'webview-process-failed'; detail = [string]$e2.ProcessFailedKind } | ConvertTo-Json -Compress) -Encoding UTF8 } catch {}; [void](Request-EdgeReset ([string]$e2.ProcessFailedKind)) })
   $c.add_WebMessageReceived({
     param($s2, $e2); try { $m = $e2.WebMessageAsJson | ConvertFrom-Json } catch { return }
     switch ($m.type) {
@@ -194,7 +216,8 @@ $wv.add_CoreWebView2InitializationCompleted({
     }
   })
   $c.Navigate('https://secretary.local/edge.html')
-})
+}
+$wv.add_CoreWebView2InitializationCompleted($script:OnEdgeInit)
 $stTimer = New-Object Windows.Forms.Timer; $stTimer.Interval = 300; $stTimer.add_Tick({ try { Read-States } catch { Write-EdgeError $_.Exception 'read-states' } })
 $simTimer = New-Object Windows.Forms.Timer; $simTimer.Interval = 16; $script:simPath = @(); $script:simI = 0
 $simTimer.add_Tick({

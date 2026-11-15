@@ -3,6 +3,7 @@
 # 验证 docs\plugin-format.md 里的最小例子：用临时测试钥匙签名，跑客户端完整的 Test-PluginPackage（开发模式，不安装）
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'plugin_format_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_v2.ps1"; . "$v2\lib_账号.ps1"; . "$v2\lib_商店.ps1"
 Add-Type -Path "$PSScriptRoot\TestSigner.cs" -ReferencedAssemblies System.Numerics
 Add-Type -AssemblyName System.IO.Compression, System.Web.Extensions

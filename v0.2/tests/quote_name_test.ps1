@@ -6,6 +6,7 @@
 # 自己画聊天区、本机 OCR 认字；虚构内容，不碰微信
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent; $root = Split-Path $v2 -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'quote_name_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$root\lib_识别.ps1"
 $pass = 0; $fail = 0; function Check($n, $ok) { if ($ok) { $script:pass++ } else { $script:fail++ }; "  [$(if ($ok) { 'PASS' } else { 'FAIL' })] $n" }
 $themes = @{

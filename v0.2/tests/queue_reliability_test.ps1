@@ -24,6 +24,7 @@ try {
   function Write-Quality { }
   $stats = @{ 错误 = 0; 提取批次 = 0; 提取条目 = 0; 需要你回的 = 0; 你答应别人的 = 0; 有截止时间的 = 0; 你在等谁 = 0 }
   $script:lastExtract = [datetime]::MinValue; $script:FeatDefaults = @{ today_list = $true }; $script:PermDefaults = @{ cloud_text = $false }
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'queue_reliability_test'   # 测试用自己的临时数据文件夹，不碰真的数据
   . (Join-Path $v2 'lib_整理队列.ps1'); Initialize-ExtractQueue $data $script:V2Data
   $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $codeRoot '12_值守.ps1'), [ref]$null, [ref]$null)
   foreach ($fn in $ast.FindAll({ param($a) $a -is [Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -in 'Extract-Todos', 'Start-QueueWorker', 'Step-QueueWorker', 'Invoke-LocalRules', 'Repair-TodoSpeaker', 'Get-SpeakerCode', 'Save-Messages' }, $true)) { . ([scriptblock]::Create($fn.Extent.Text)) }

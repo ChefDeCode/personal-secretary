@@ -3,6 +3,7 @@
 # 设置 → 秘书可以自己做的事：规则怎么存、固定底线挡不挡得住。会临时改设置，结束后改回原样
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'rules_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_v2.ps1"; . "$v2\lib_事件.ps1"
 $pass = 0; $fail = 0; function Check($name, $ok) { if ($ok) { $script:pass++ } else { $script:fail++; "FAIL $name" } }
 $orig = (Read-Config).rules

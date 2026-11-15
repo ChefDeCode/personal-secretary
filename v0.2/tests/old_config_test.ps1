@@ -2,6 +2,7 @@
 # Copyright (C) 2026 ChefDeCode
 # 旧的设置文件也能照常打开：里面还留着「桌面 2」、后台发送这些已经去掉的键，不报错、不出现在设置里、别的开关照常改；新的「发送」一组能来回切
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'old_config_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 $v2 = Split-Path $PSScriptRoot -Parent; . "$v2\lib_v2.ps1"
 $pass = 0; $fail = 0; function Check($n, $ok) { if ($ok) { $script:pass++ } else { $script:fail++ }; "  [$(if ($ok) { 'PASS' } else { 'FAIL' })] $n" }
 $T = Join-Path $env:TEMP 'secretary_oldcfg'; Remove-Item $T -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force $T | Out-Null

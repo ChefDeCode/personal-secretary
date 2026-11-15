@@ -2,6 +2,7 @@
 # Copyright (C) 2026 ChefDeCode
 $ErrorActionPreference='Stop'
 $v2=Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'page_reads_reliability_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 $ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $v2 '秘书.ps1'),[ref]$null,[ref]$null)
 $fn=$ast.Find({param($n)$n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Request-PageRead'},$true)
 . ([scriptblock]::Create($fn.Extent.Text))

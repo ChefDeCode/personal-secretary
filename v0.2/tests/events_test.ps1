@@ -4,6 +4,17 @@
 # 不发送（Start-Send、Start-Turn 换成只记录）、不碰微信；全部在临时文件夹里
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'events_test'   # 测试用自己的临时数据文件夹，不碰真的数据
+# 固定的「现在」：测试结果不再取决于今天星期几、几点（默认 2026-11-04 星期三 10:00；EVENTS_TEST_NOW 可以换别的时间来跑）
+# 只在这个测试里：同名函数优先于 Get-Date 命令，秘书代码里所有「现在」都从这里拿，并照常往前走
+$script:FakeNow = if ($env:EVENTS_TEST_NOW) { [datetime]$env:EVENTS_TEST_NOW } else { [datetime]'2026-11-04T10:00:00' }; $script:FakeClock = [Diagnostics.Stopwatch]::StartNew()
+function Get-Date {
+  $n = $script:FakeNow.AddMilliseconds($script:FakeClock.Elapsed.TotalMilliseconds)
+  if (-not $args.Count) { return $n }
+  if ($args -contains '-Date' -or -not ($args[0] -is [string] -and ([string]$args[0]).StartsWith('-'))) { return (Microsoft.PowerShell.Utility\Get-Date @args) }
+  Microsoft.PowerShell.Utility\Get-Date -Date $n @args
+}
+"   fixed now: $($script:FakeNow.ToString('yyyy-MM-dd ddd HH:mm'))"
 . "$v2\lib_v2.ps1"; . "$v2\lib_提醒.ps1"
 $T = Join-Path $env:TEMP 'secretary_events_test'; Remove-Item $T -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force "$T\actions", "$T\root\data" | Out-Null
 $script:ChatFile = "$T\chat.jsonl"; $script:ChatArchive = "$T\chat_archive.jsonl"; $script:ActDir = "$T\actions"; $script:V2Data = $T; $script:RemDir = $T; $script:Root = "$T\root"
@@ -34,7 +45,8 @@ On-Choose $c1.id 1 ''; $c1 = CardOf $k1; Assert ($c1.card.status -eq 'scheduled'
 $k2 = AddEv @{ 类型 = '叫你做事'; 事情 = '回电话'; 时间原话 = "$(($now.AddHours(2)).Hour % 12)点"; 原文 = '记得回电话' }; Tick
 $c2 = CardOf $k2; Assert ($c2 -and $c2.card.kind -eq 'event' -and $c2.card.at) "bare hour → card without question ($($c2.card.atText))"
 # 3) 模糊但能猜（明天 / 周五前 / 晚点）：不问，卡上写怎么猜的
-$k3 = AddEv @{ 类型 = '你答应的'; 事情 = '把资料发过去'; 时间原话 = '明天'; 原文 = '我明天发你'; 发言 = 'self' }; $k3b = AddEv @{ 类型 = '叫你做事'; 事情 = '交方案'; 时间原话 = '周五前'; 原文 = '周五前把方案给我' }; $k3c = AddEv @{ 类型 = '你答应的'; 事情 = '回消息'; 时间原话 = '晚点'; 原文 = '我晚点回你' }; Tick
+# 「周X前」取两天以后的那个星期几：不管今天星期几都还没过
+$k3 = AddEv @{ 类型 = '你答应的'; 事情 = '把资料发过去'; 时间原话 = '明天'; 原文 = '我明天发你'; 发言 = 'self' }; $wd3 = '日一二三四五六'[[int]$now.AddDays(2).DayOfWeek]; $k3b = AddEv @{ 类型 = '叫你做事'; 事情 = '交方案'; 时间原话 = "周${wd3}前"; 原文 = "周${wd3}前把方案给我" }; $k3c = AddEv @{ 类型 = '你答应的'; 事情 = '回消息'; 时间原话 = '晚点'; 原文 = '我晚点回你' }; Tick
 $g = @($k3, $k3b, $k3c | ForEach-Object { CardOf $_ }); Assert (@($g | Where-Object { $_.card.kind -eq 'event' -and $_.card.note }).Count -eq 3) "vague with context → 3 cards, each says how it guessed ($(($g | ForEach-Object { $_.card.note }) -join ' / '))"
 # 4) 猜不出：两张连着的卡；先选时间再点好
 $k4 = AddEv @{ 类型 = '提醒对方'; 事情 = '交表'; 时间原话 = '过阵子'; 草稿 = '记得交表哦'; 原文 = '过阵子提醒我交表' }; Tick

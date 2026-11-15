@@ -3,6 +3,7 @@
 # 秘书「在想」的 7 秒里，秘书自己窗口周围有没有亮框：模拟「在想」（和真的一样写 state.json），对比窗口四周一圈像素（只比颜色数字，不存截图）
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'own_border_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_v2.ps1"
 Add-Type -AssemblyName System.Drawing
 Add-Type 'using System; using System.Runtime.InteropServices; public static class OB { [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; } [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r); [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h); [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h); }'

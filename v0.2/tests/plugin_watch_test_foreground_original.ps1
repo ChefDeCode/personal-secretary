@@ -4,6 +4,7 @@
 # 1) 读得出来 → 交给整理（这里只数条数）；2) 一直读空 → 第 3 次报坏；3) 秘书收到后停用插件、恢复自己适配的版面
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent; $root = Split-Path $v2 -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'plugin_watch_test_foreground_original'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_v2.ps1"; . (Join-Path $root 'lib_识别.ps1'); . "$v2\lib_虚拟桌面.ps1"; . "$v2\lib_通用识别.ps1"; . "$v2\lib_商店.ps1"
 $T = Join-Path $env:TEMP 'secretary_plugin_watch'; Remove-Item $T -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force "$T\adapters" | Out-Null; $script:V2Data = $T
 $pass = 0; $fail = 0; function Check($n, $ok) { if ($ok) { $script:pass++ } else { $script:fail++ }; "  [$(if ($ok) { 'PASS' } else { 'FAIL' })] $n" }

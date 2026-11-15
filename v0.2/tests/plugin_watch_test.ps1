@@ -1,5 +1,6 @@
 ﻿# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 ChefDeCode
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'plugin_watch_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$PSScriptRoot\lib_synthetic_test.ps1"
 . "$v2\lib_v2.ps1"; . "$v2\lib_商店.ps1"
 Import-TestFunctions "$productRoot\12_值守.ps1" @('Watch-Plugins')

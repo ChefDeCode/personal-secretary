@@ -3,6 +3,7 @@
 # Edge 来源的设置和值守：网站清单的加 / 删（临时改，结束后改回）；值守只在开关开着、网站在清单里时读（假浏览器窗口 + 临时设置）
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent; $realRoot = Split-Path $v2 -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'web_watch_test_foreground_original'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_v2.ps1"; . (Join-Path $realRoot 'lib_识别.ps1'); . "$v2\lib_虚拟桌面.ps1"; . "$v2\lib_网页读.ps1"; . "$v2\lib_原地读.ps1"
 $pass = 0; $fail = 0; function Check($n, $ok) { if ($ok) { $script:pass++ } else { $script:fail++ }; "  [$(if ($ok) { 'PASS' } else { 'FAIL' })] $n" }
 $orig = (Read-Config).edge_sites

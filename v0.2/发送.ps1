@@ -16,7 +16,7 @@ function Finish([object]$ok, [string]$msg) {
   if ($script:LitFile) { try { Set-Lit $script:LitFile 1 } catch {} }
   $result = Save-ActionResult $Id $ok $msg @($steps) ([string]$script:Draft)
   $saved = Get-Action $Id
-  [IO.File]::AppendAllLines((Join-Path $script:V2Data 'send_log.jsonl'), [string[]]@((Protect ((@{ ts = (Get-Date).ToString('s'); id = $Id; status = $result.state; message = $msg; steps = @($steps) }) | ConvertTo-Json -Depth 8 -Compress))), [Text.UTF8Encoding]::new($false))
+  if (-not ($env:SECRETARY_TEST -and (Get-Command Test-TestWriteBlocked -ErrorAction SilentlyContinue) -and (Test-TestWriteBlocked (Join-Path $script:V2Data 'send_log.jsonl')))) { [IO.File]::AppendAllLines((Join-Path $script:V2Data 'send_log.jsonl'), [string[]]@((Protect ((@{ ts = (Get-Date).ToString('s'); id = $Id; status = $result.state; message = $msg; steps = @($steps) }) | ConvertTo-Json -Depth 8 -Compress))), [Text.UTF8Encoding]::new($false)) }
   exit
 }
 function Norm($s) { ([string]$s -replace '\s', '') }
@@ -77,7 +77,7 @@ $o = @{ proc = 'Weixin'; findMain = { param($ids) [FgSend]::FindLarge($ids, $tru
         pill = (Join-Path $script:V2Data 'notice_pill.json'); border = (Join-Path $script:DataDir 'border.json'); same = ${function:SameExact}; actionId = $Id; noMouse = [bool]$cfgF.never_borrow_mouse
         idleMs = $(if ($cfgF.send_wait -eq 'away1m') { 60000 } else { 2000 }); maxWaitSec = $(if ($cfgF.send_wait -eq 'away1m') { 7200 } else { 60 }); nowFlag = (Join-Path $script:V2Data "send_now_$Id.flag") }
 $fr = $null; try { $fr = Invoke-FgSend $o $a.conv $a.text -Replace:([bool]$a.replace) } catch { Step '发送中断，已根据记录判断是否需要核对' $false; $ar = Get-Action $Id; Finish $(if ($ar.phase -eq 'preparing') { $false } else { $null }) '执行中断' }   # 出错也要写结果、收掉「正在发」
-try { [IO.File]::AppendAllLines((Join-Path $script:V2Data 'send_trace.jsonl'), [string[]]@((@{ ts = (Get-Date).ToString('s'); id = $Id; kind = 'fg'; ok = $fr.ok; msg = $fr.msg; focus = $fr.focus; diag = $fr.diag; keys_effect = $fr.keys_effect; fg_at_keys = $fr.fg_at_keys; capped = [bool]$fr.capped; cbf = $fr.cbf; verify = $fr.verify; front_ms = $fr.front_ms; steps_ms = $fr.t; fg_back = $fr.fg_back; clip_ok = $fr.clip_ok } | ConvertTo-Json -Depth 3 -Compress))) } catch {}
+try { if ($env:SECRETARY_TEST -and (Get-Command Test-TestWriteBlocked -ErrorAction SilentlyContinue) -and (Test-TestWriteBlocked (Join-Path $script:V2Data 'send_trace.jsonl'))) { throw 'test-guard' }; [IO.File]::AppendAllLines((Join-Path $script:V2Data 'send_trace.jsonl'), [string[]]@((@{ ts = (Get-Date).ToString('s'); id = $Id; kind = 'fg'; ok = $fr.ok; msg = $fr.msg; focus = $fr.focus; diag = $fr.diag; keys_effect = $fr.keys_effect; fg_at_keys = $fr.fg_at_keys; capped = [bool]$fr.capped; cbf = $fr.cbf; verify = $fr.verify; front_ms = $fr.front_ms; steps_ms = $fr.t; fg_back = $fr.fg_back; clip_ok = $fr.clip_ok } | ConvertTo-Json -Depth 3 -Compress))) } catch {}
 foreach ($s in @($fr.steps)) { Step $s.text $s.ok }
 $script:Draft = $fr.draft; if ($fr.ok -ne $false) { $script:EnterPressed = $true }
 Finish $fr.ok $fr.msg

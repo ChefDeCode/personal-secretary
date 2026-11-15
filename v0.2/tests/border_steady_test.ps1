@@ -4,6 +4,7 @@
 # 每 ~2 毫秒取一次屏幕上边框那一点的颜色（只取我们边框所在的像素，不截任何别的内容），数「亮着期间暗下去」的次数。
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent; $root = Split-Path $v2 -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'border_steady_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$root\lib_窗口工具.ps1"
 Add-Type @'
 using System; using System.Threading; using System.Runtime.InteropServices;

@@ -4,6 +4,7 @@
 # 「重启」= 另开一个 PowerShell 进程，只读临时文件夹里存下来的状态
 param([string]$Child = '', [string]$At = '')
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'reminder_resolved_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 $v2 = Split-Path $PSScriptRoot -Parent; . "$v2\lib_v2.ps1"
 $T = Join-Path $env:TEMP 'secretary_rem_resolved'
 function Use-Sandbox { $script:CfgPath = "$T\config.json"; $script:RemDir = $T; $script:V2Data = $T; $script:DoneFile = "$T\done.json"; $script:DataDir = $T; $script:MemDir = $T }

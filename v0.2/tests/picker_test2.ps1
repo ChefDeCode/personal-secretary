@@ -30,6 +30,7 @@ function MainWin { $sp = (Get-CimInstance Win32_Process -Filter "Name='powershel
   $c = New-Object Windows.Automation.PropertyCondition ($AE::ProcessIdProperty, [int]$sp); @($AE::RootElement.FindAll($TS::Children, $c)) | Where-Object { $r = $_.Current.BoundingRectangle; -not ([Math]::Abs($r.Width - 720) -lt 40 -and [Math]::Abs($r.Height - 960) -lt 40) -and $r.Width -gt 500 -and -not $_.Current.IsOffscreen } | Select-Object -First 1 }   # 主窗口：不是 720×960 的小浮窗
 function Find([string]$name, [int]$ms = 6000, [switch]$Contains) { $sw = [Diagnostics.Stopwatch]::StartNew()
   while ($sw.ElapsedMilliseconds -lt $ms) { $w = MainWin; if ($w) { foreach ($e in $w.FindAll($TS::Descendants, [Windows.Automation.Condition]::TrueCondition)) { $n = $e.Current.Name; if (($Contains -and $n -and $n.Contains($name)) -or $n -eq $name) { $r = $e.Current.BoundingRectangle; if ($r.Width -gt 0) { return $e } } } }; Start-Sleep -Milliseconds 250 }; $null }
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'picker_test2'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$PSScriptRoot\lib_测试输入.ps1"   # 所有真实点击、按键都经过这里的保护（只点秘书自己的窗口 / 登记过的测试窗口）
 function ClickAt([int]$x, [int]$y, [switch]$Right) { Invoke-TestClick $x $y -Right:$Right }
 function ClickEl($e, [switch]$Right) { Invoke-TestClickElement $e -Right:$Right }

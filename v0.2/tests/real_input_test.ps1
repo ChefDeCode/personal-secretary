@@ -3,6 +3,7 @@
 # 「你在动吗」只认真的键盘鼠标：程序模拟出来的按键 / 鼠标（我们自己发送时按的、别的软件模拟的）不算。按一个没有用处的 F24 键、鼠标原地挪 0 像素来试
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'real_input_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_v2.ps1"; . (Join-Path $script:Root 'lib_识别.ps1'); . "$v2\lib_虚拟桌面.ps1"; . "$v2\lib_找聊天.ps1"; . "$v2\lib_打字.ps1"; . "$v2\lib_前台发送.ps1"
 $pass = 0; $fail = 0; function Check($n, $ok) { if ($ok) { $script:pass++ } else { $script:fail++ }; "  [$(if ($ok) { 'PASS' } else { 'FAIL' })] $n" }
 Add-Type 'using System; using System.Runtime.InteropServices; public static class Inj { [StructLayout(LayoutKind.Sequential)] struct INPUT { public uint type; public U u; } [StructLayout(LayoutKind.Explicit)] struct U { [FieldOffset(0)] public KI ki; [FieldOffset(0)] public MI mi; } [StructLayout(LayoutKind.Sequential)] struct KI { public ushort vk, sc; public uint fl, t; public IntPtr x; } [StructLayout(LayoutKind.Sequential)] struct MI { public int dx, dy; public uint d, fl, t; public IntPtr x; } [DllImport("user32.dll")] static extern uint SendInput(uint n, INPUT[] i, int s);

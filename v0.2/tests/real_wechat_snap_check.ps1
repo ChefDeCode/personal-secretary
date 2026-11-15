@@ -6,6 +6,7 @@
 # 不点、不按键、不发任何东西；你一碰鼠标键盘就停（这一次放回去、后面不再跑）
 param([int]$N = 20)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'real_wechat_snap_check'   # 测试用自己的临时数据文件夹，不碰真的数据
 $v2 = Split-Path $PSScriptRoot -Parent; . "$v2\lib_v2.ps1"; . (Join-Path $script:Root 'lib_识别.ps1'); . "$v2\lib_虚拟桌面.ps1"; . "$v2\lib_原地读.ps1"
 Add-Type 'using System; using System.Runtime.InteropServices; public static class RS { [StructLayout(LayoutKind.Sequential)] public struct WP { public int len, flags, show; public int mx, my, xx, xy; public int l, t, r, b; } [DllImport("user32.dll")] public static extern bool GetWindowPlacement(IntPtr h, ref WP p); [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr h, int i); [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h, uint c); }'
 $out = Join-Path $script:V2Data 'real_snap_check.txt'

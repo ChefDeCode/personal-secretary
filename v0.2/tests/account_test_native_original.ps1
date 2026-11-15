@@ -5,6 +5,7 @@
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
 $T = Join-Path $env:TEMP "secretary_acct_test"; Remove-Item $T -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force "$T\data\adapters" | Out-Null
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'account_test_native_original'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_v2.ps1"
 Copy-Item $script:CfgPath "$T\config.json"; $script:CfgPath = "$T\config.json"; $script:V2Data = "$T\data"; $script:AcctDir = "$T\data"
 . "$v2\lib_账号.ps1"; . "$v2\lib_商店.ps1"

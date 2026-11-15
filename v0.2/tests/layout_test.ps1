@@ -1,5 +1,6 @@
 ﻿# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 ChefDeCode
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'layout_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$PSScriptRoot\lib_synthetic_test.ps1"
 foreach($page in 'index.html','mini.html'){
  $text=[IO.File]::ReadAllText((Join-Path $v2 "ui\$page"))

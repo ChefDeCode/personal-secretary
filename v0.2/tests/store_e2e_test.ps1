@@ -3,6 +3,7 @@
 # 插件商城一键安装，端到端（真服务器，装在临时文件夹，不动你的真设置）：列表 → 下载 + 本机校验 → 权限卡片 → 安装 → 自检（只读：截图认字，只记数字）→ 卸载
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'store_e2e_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_v2.ps1"; . (Join-Path $script:Root 'lib_识别.ps1'); . "$v2\lib_通用识别.ps1"; . "$v2\lib_虚拟桌面.ps1"; . "$v2\lib_账号.ps1"; . "$v2\lib_商店.ps1"
 $T = Join-Path $env:TEMP 'secretary_store_e2e'; Remove-Item $T -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force $T | Out-Null; $script:V2Data = $T
 $pass = 0; $fail = 0; function Check($n, $ok) { if ($ok) { $script:pass++ } else { $script:fail++ }; "  [$(if ($ok) { 'PASS' } else { 'FAIL' })] $n" }

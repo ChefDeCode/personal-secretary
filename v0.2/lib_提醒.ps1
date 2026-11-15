@@ -29,11 +29,13 @@ function Test-Quiet([datetime]$now, $c) {
 
 # —— 截止时间：把「周四下班前」「明天下午三点」「11月3日」之类换成具体时间（相对消息的时间）；只给出日期时 time = $false ——
 $script:CnNum = @{ '一' = 1; '二' = 2; '两' = 2; '三' = 3; '四' = 4; '五' = 5; '六' = 6; '七' = 7; '八' = 8; '九' = 9; '十' = 10; '十一' = 11; '十二' = 12; '日' = 7; '天' = 7 }
+function New-DueDate($y, $m, $d) { $y = [int]$y; $m = [int]$m; $d = [int]$d; if ($y -lt 1 -or $y -gt 9999 -or $m -lt 1 -or $m -gt 12 -or $d -lt 1 -or $d -gt [DateTime]::DaysInMonth($y, $m)) { return $null }; [datetime]::new($y, $m, $d) }
 function Resolve-Due([string]$s, [datetime]$base) {
-  if (-not $s) { return $null }; $s = $s -replace '\s', ''; $d = $null
-  if ($s -match '(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})') { $d = Get-Date -Year $Matches[1] -Month $Matches[2] -Day $Matches[3] }
-  elseif ($s -match '(\d{1,2})月(\d{1,2})[日号]?') { $d = Get-Date -Year $base.Year -Month $Matches[1] -Day $Matches[2]; if ($d -lt $base.Date.AddDays(-30)) { $d = $d.AddYears(1) } }
-  elseif ($s -match '(?<![\d:])(\d{1,2})[/.](\d{1,2})(?![\d:])') { $d = Get-Date -Year $base.Year -Month $Matches[1] -Day $Matches[2]; if ($d -lt $base.Date.AddDays(-30)) { $d = $d.AddYears(1) } }
+  if (-not $s) { return $null }; $s = ($s -replace '(?<=\d)\s*[一彐－—–‐]\s*(?=\d)', '-') -replace '\s', ''; $d = $null   # 屏幕识别把日期横线认成「一」「彐」等：先换回 "-"
+  # 认错的数字可能拼出 0 月、32 日：这种日期读不出来就不猜（不当成今天），也不报错
+  if ($s -match '(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})') { $d = New-DueDate $Matches[1] $Matches[2] $Matches[3]; if (-not $d) { return $null } }
+  elseif ($s -match '(\d{1,2})月(\d{1,2})[日号]?') { $d = New-DueDate $base.Year $Matches[1] $Matches[2]; if (-not $d) { return $null }; if ($d -lt $base.Date.AddDays(-30)) { $d = $d.AddYears(1) } }
+  elseif ($s -match '(?<![\d:])(\d{1,2})[/.](\d{1,2})(?![\d:])') { $d = New-DueDate $base.Year $Matches[1] $Matches[2]; if (-not $d) { return $null }; if ($d -lt $base.Date.AddDays(-30)) { $d = $d.AddYears(1) } }
   elseif ($s -match '大后天') { $d = $base.AddDays(3) } elseif ($s -match '后天') { $d = $base.AddDays(2) }
   elseif ($s -match '明[天早晚日]') { $d = $base.AddDays(1) } elseif ($s -match '今[天早晚日]|今晚|一会儿|待会') { $d = $base }
   elseif ($s -match '(下下|下)?(?:周|星期|礼拜)([一二三四五六日天])') {
@@ -59,7 +61,7 @@ function Get-DueItems([datetime]$now = (Get-Date)) {
   foreach ($t in Get-TrackedTodos) {
     $id=$t.id;$cv=$t.conv;$what=$t.what;$who=$t.who
     if(Get-Command Resolve-Other -ErrorAction SilentlyContinue){$what=Resolve-Other $what $cv;$who=Resolve-Other $who $cv}
-    $out.Add([pscustomobject]@{key="t:$id";id=$id;kind=$cat[$t.category];what=$what;who=$who;dueText=$t.due_text;at=$(if($t.due_at){[datetime]$t.due_at}else{$null});hasTime=[bool]$t.has_time;since=[datetime]$t.since;src=$t.app;conv=$cv;ref="todo:$id";response_state=$t.response_state})
+    $out.Add([pscustomobject]@{key="t:$id";id=$id;kind=$cat[$t.category];what=$what;who=$who;dueText=$t.due_text;at=$(if($t.due_at){[datetime]$t.due_at}else{$null});hasTime=[bool]$t.has_time;since=[datetime]$t.since;src=$t.app;conv=$cv;ref="todo:$id";response_state=$t.response_state;created=$(if($t.created){try{[datetime]$t.created}catch{$null}}else{$null})})
   }
   if (Get-Command Get-Memories -ErrorAction SilentlyContinue) {
     foreach ($m in Get-Memories | Where-Object { $_.type -eq 'promise' -and $_.status -eq 'active' -and $_.due }) {
@@ -165,23 +167,83 @@ function Remove-ResolvedActive($s) {
 }
 # 「完成」点下去（或自动收掉）以后马上调用：相关的提醒卡一起收
 function Close-ResolvedReminders { $s = Get-RemState; if (Remove-ResolvedActive $s) { Save-RemState $s } }
-function Write-RemLog([string]$id, [string]$action) { [IO.File]::AppendAllLines((RemPath 'reminders_log.jsonl'), [string[]]@((@{ ts = (Get-Date).ToString('s'); id = $id; action = $action } | ConvertTo-Json -Compress)), (New-Object Text.UTF8Encoding $false)) }
+function Write-RemLog([string]$id, [string]$action) { if ($env:SECRETARY_TEST -and (Get-Command Test-TestWriteBlocked -ErrorAction SilentlyContinue) -and (Test-TestWriteBlocked (RemPath 'reminders_log.jsonl'))) { return }; [IO.File]::AppendAllLines((RemPath 'reminders_log.jsonl'), [string[]]@((@{ ts = (Get-Date).ToString('s'); id = $id; action = $action } | ConvertTo-Json -Compress)), (New-Object Text.UTF8Encoding $false)) }
 function Get-CustomReminders { $f = RemPath 'reminders_custom.jsonl'; if (-not (Test-Path $f)) { return @() }; @(Get-Content $f -Encoding UTF8 | ForEach-Object { try { (MemU $_) | ConvertFrom-Json } catch {} }) }
 function Add-CustomReminder([string]$text, [datetime]$at, [string]$key) { [IO.File]::AppendAllLines((RemPath 'reminders_custom.jsonl'), [string[]]@((MemP (@{ key = $key; text = $text; at = $at.ToString('s') } | ConvertTo-Json -Compress))), (New-Object Text.UTF8Encoding $false)) }
 
+# —— 你在那个聊天里回过消息了吗：只看秘书自己存的消息记录（messages.jsonl 里「我」发的），每次只读新增的部分 ——
+# reply_seen.json 里只有「软件|聊天名」的哈希、每个聊天你最后一条消息的时间、读到哪儿了，不含内容。
+# 只在后台的提醒检查里调用（每 30 秒一次，大多数时候文件没变就直接返回）；界面线程不调用
+function Get-ChatHash([string]$app, [string]$conv) {
+  if (-not $conv) { return '' }; $sha = [Security.Cryptography.SHA256]::Create()
+  try { ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes("$(if ($app) { $app } else { '微信' })|$conv"))) -replace '-', '').Substring(0, 32) } finally { $sha.Dispose() }
+}
+function Update-OwnReplyIndex {
+  $mf = Join-Path $script:DataDir 'messages.jsonl'; $sf = RemPath 'reply_seen.json'
+  $chats = @{}; $off = [long]0; $head = ''
+  if (Test-Path -LiteralPath $sf) { try { $st = [IO.File]::ReadAllText($sf) | ConvertFrom-Json; $off = [long]$st.offset; $head = [string]$st.head; foreach ($p in @($st.chats.PSObject.Properties)) { $chats[$p.Name] = [string]$p.Value } } catch { $chats = @{}; $off = 0; $head = '' } }
+  if (-not (Test-Path -LiteralPath $mf)) { return $chats }
+  $fs = [IO.File]::Open($mf, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete)
+  try {
+    $len = $fs.Length; $hb = New-Object byte[] ([int][Math]::Min(256, $len)); [void]$fs.Read($hb, 0, $hb.Length)
+    $sha = [Security.Cryptography.SHA256]::Create(); try { $h = [Convert]::ToBase64String($sha.ComputeHash($hb)) } finally { $sha.Dispose() }
+    if ($len -lt $off -or ($head -and $head -ne $h -and $off -ge 256)) { $chats = @{}; $off = 0 }   # 存档换了 / 变短了：从头再读
+    if ($len -eq $off) { return $chats }
+    [void]$fs.Seek($off, [IO.SeekOrigin]::Begin); $buf = New-Object byte[] ([int]($len - $off)); $got = 0
+    while ($got -lt $buf.Length) { $r = $fs.Read($buf, $got, $buf.Length - $got); if ($r -le 0) { break }; $got += $r }
+  } finally { $fs.Dispose() }
+  if ($got -le 0) { return $chats }; $end = [Array]::LastIndexOf($buf, [byte]10, $got - 1); if ($end -lt 0) { return $chats }   # 只读到最后一个完整的行
+  foreach ($line in ([Text.Encoding]::UTF8.GetString($buf, 0, $end + 1) -split "`n")) {
+    if ($line -notmatch '"sender"') { continue }
+    try { $m = $line | ConvertFrom-Json } catch { continue }
+    if ($m.baseline) { continue }   # 第一次看到这个聊天时的整屏旧消息：不知道是什么时候发的，不算
+    if ((Unprotect $m.sender) -ne '我') { continue }
+    $k = Get-ChatHash ([string]$m.app) (Unprotect $m.conv); if (-not $k) { continue }
+    if (-not $chats[$k] -or [string]$m.ts -gt $chats[$k]) { $chats[$k] = [string]$m.ts }
+  }
+  Write-FileAtomic $sf (@{ offset = $off + $end + 1; head = $h; chats = $chats } | ConvertTo-Json -Depth 3 -Compress)
+  $chats
+}
+function Test-ChatRepliedAfter($own, [string]$app, [string]$conv, $since) {
+  if (-not $own -or -not $conv -or -not $since) { return $false }
+  $t = $own[(Get-ChatHash $app $conv)]; [bool]($t -and [datetime]$t -gt [datetime]$since)
+}
+# 你已经在那个聊天里发过消息的「要你回」：提醒卡收掉（只收 reply|… 的卡；事情本身的状态不动，今天卡也留着）
+function Remove-RepliedActive($s, $replied) {
+  if (-not $replied -or -not $replied.Count) { return 0 }; $n = 0; $keep = @()
+  foreach ($c in @($s.active | Where-Object { $_ })) {
+    if ($c.item -eq 'merge') {
+      $parts = @($c.parts | Where-Object { $_ -and -not ([string]$_.id -like 'reply|*' -and $replied.Contains([string]$_.item)) })
+      if (-not $parts.Count) { $n++; Write-RemLog $c.id 'replied'; continue }
+      if ($parts.Count -ne @($c.parts).Count) { $c.parts = $parts; $c.text = "还有 $($parts.Count) 件事要留意" }
+      $keep += $c; continue }
+    if ([string]$c.id -like 'reply|*' -and $replied.Contains([string]$c.item)) {
+      $n++; if (-not $s.fired.($c.id)) { $s.fired | Add-Member $c.id 'replied' -Force }; Write-RemLog $c.id 'replied'
+      if (Get-Command Write-Quality -ErrorAction SilentlyContinue) { Write-Quality @{ ev = 'outcome'; src = 'reminder'; id = $c.id; kind = (Get-RemKind $c.id); out = '自动收掉'; created = [string]$c.ts } }; continue }
+    $keep += $c
+  }
+  $s.active = $keep; $n
+}
+
 # —— 候选：现在可能该提醒的（全部本机算）——
-function Get-ReminderCandidates([datetime]$now) {
-  $c = Get-RemindCfg; $out = New-Object System.Collections.Generic.List[object]
+# $OwnReply：Update-OwnReplyIndex 的结果（不给就不看「你回过没有」）；回过的「要你回」记在 $script:RemReplied
+function Get-ReminderCandidates([datetime]$now, $OwnReply = $null) {
+  $c = Get-RemindCfg; $out = New-Object System.Collections.Generic.List[object]; $script:RemReplied = New-Object 'System.Collections.Generic.HashSet[string]'
   foreach ($it in Get-DueItems $now) {
     $who = if ($it.who) { $it.who } else { '' }
     if ($it.at) {
-      $label = switch ($it.kind) { 'promise' { "你答应$(if ($who) { $who })的事今天到期：$($it.what)" } 'theirs' { "$(if ($who) { $who } else { '对方' })答应你的事今天该有结果了：$($it.what)" } default { "今天到期：$($it.what)" } }
-      $out.Add([pscustomobject]@{ id = "day|$($it.key)|$($it.at.ToString('yyyyMMdd'))"; item = $it.key; at = (At $it.at $c.brief); until = $it.at.Date.AddDays(1); text = $label; important = ($it.kind -ne 'theirs') })
-      if ($it.hasTime) { $out.Add([pscustomobject]@{ id = "pre2h|$($it.key)|$($it.at.ToString('yyyyMMddHHmm'))"; item = $it.key; at = $it.at.AddHours(-2); until = $it.at; text = "还有 2 小时到期（$($it.at.ToString('HH:mm'))）：$($it.what)"; important = $true }) }
+      # 当天早上简报之后才整理出来的事（今天栏已经有它的卡）、或者有具体时间且已经过了：不再弹「今天到期」；还有 2 小时：事情是在那之后才整理出来的就不弹
+      $lateDay = [bool]($it.created -and $it.created.Date -eq $it.at.Date -and $it.created -gt (At $it.at $c.brief))
+      $skipDay = $lateDay -or ($it.hasTime -and $it.at -le $now)
+      $skipPre = [bool]($it.created -and $it.created -gt $it.at.AddHours(-2))
+      $label =switch ($it.kind) { 'promise' { "你答应$(if ($who) { $who })的事今天到期：$($it.what)" } 'theirs' { "$(if ($who) { $who } else { '对方' })答应你的事今天该有结果了：$($it.what)" } default { "今天到期：$($it.what)" } }
+      if (-not $skipDay) { $out.Add([pscustomobject]@{ id = "day|$($it.key)|$($it.at.ToString('yyyyMMdd'))"; item = $it.key; at = (At $it.at $c.brief); until = $it.at.Date.AddDays(1); text = $label; important = ($it.kind -ne 'theirs') }) }
+      if ($it.hasTime -and -not $skipPre) { $out.Add([pscustomobject]@{ id = "pre2h|$($it.key)|$($it.at.ToString('yyyyMMddHHmm'))"; item = $it.key; at = $it.at.AddHours(-2); until = $it.at; text = "还有 2 小时到期（$($it.at.ToString('HH:mm'))）：$($it.what)"; important = $true }) }
     }
     # 你在等谁：等了 N 天（默认 1 天）还没结果，提醒你去催一下
     if ($it.kind -eq 'waiting') { $out.Add([pscustomobject]@{ id = "wait|$($it.key)"; item = $it.key; at = $it.since.AddDays($c.waitDays); until = $it.since.AddDays($c.waitDays + 3); text = "你在等$(if ($who) { $who } else { '别人' })的回复，已经 $(if ($c.waitDays -ge 1) { "$([int]$c.waitDays) 天" } else { "$([int]($c.waitDays * 24)) 小时" })了，要不要催一下：$($it.what)"; important = $false }) }
-    if ($it.kind -eq 'reply') { $out.Add([pscustomobject]@{ id = "reply|$($it.key)"; item = $it.key; at = $it.since.AddHours($c.replyHours); until = $it.since.AddDays(3); text = "$(if ($who) { $who } else { '有人' })在等你回复，已经 $([int]$c.replyHours) 小时了：$($it.what)"; important = $false }) }
+    if ($it.kind -eq 'reply' -and (Test-ChatRepliedAfter $OwnReply $it.src $it.conv $it.since)) { [void]$script:RemReplied.Add([string]$it.key) }   # 原消息之后你在那个聊天里发过消息：不再追着提醒
+    elseif ($it.kind -eq 'reply') { $out.Add([pscustomobject]@{ id = "reply|$($it.key)"; item = $it.key; at = $it.since.AddHours($c.replyHours); until = $it.since.AddDays(3); text = "$(if ($who) { $who } else { '有人' })在等你回复，已经 $([int]$c.replyHours) 小时了：$($it.what)"; important = $false }) }
   }
   foreach ($r in Get-CustomReminders) { $a = [datetime]$r.at; $out.Add([pscustomobject]@{ id = "custom|$($r.key)"; item = $r.key; at = $a; until = $a.AddDays(1); text = $r.text; important = $false }) }
   # 早上简报：每天一次
@@ -194,7 +256,9 @@ function Invoke-ReminderTick([datetime]$now = (Get-Date), [scriptblock]$BriefWri
   if (-not (Get-Feature 'proactive')) { return @() }
   $c = Get-RemindCfg; $s = Get-RemState; [void](Remove-ResolvedActive $s)   # 先收掉已经处理过的，再算新的
   $due = New-Object System.Collections.Generic.List[object]
-  foreach ($x in Get-ReminderCandidates $now) {
+  $own = $null; try { $own = Update-OwnReplyIndex } catch { }   # 读不了消息记录就照旧提醒
+  $cands = @(Get-ReminderCandidates $now $own); [void](Remove-RepliedActive $s $script:RemReplied)
+  foreach ($x in $cands) {
     if ($s.muted.($x.item)) { continue }
     $sn = $s.snooze.($x.id); $at = if ($sn) { [datetime]$sn } else { $x.at }
     if ($s.fired.($x.id) -and -not $sn) { continue }

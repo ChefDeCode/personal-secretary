@@ -3,6 +3,7 @@
 # 合成测试：后台调度、代次隔离、队列上限、取消、纯数字日志、严格重启判定。
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'runtime_reliability_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . (Join-Path $v2 'lib_后台任务.ps1')
 $script:pass = 0; $script:fail = 0
 function Check([string]$Name,[bool]$Ok) { if ($Ok) { $script:pass++ } else { $script:fail++ }; Write-Output ("[{0}] {1}" -f $(if ($Ok) {'PASS'} else {'FAIL'}),$Name) }

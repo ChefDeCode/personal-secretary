@@ -3,6 +3,7 @@
 # 「去回复」流程测试：在我们自己的模拟聊天软件上，用 UI 自动化当驱动（不发任何真实鼠标 / 键盘输入，不碰微信）
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'jump_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_回复跳转.ps1"
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 $AE = [Windows.Automation.AutomationElement]; $TS = [Windows.Automation.TreeScope]

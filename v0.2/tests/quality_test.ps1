@@ -5,6 +5,7 @@
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
 $T = Join-Path $env:TEMP 'secretary_quality'; Remove-Item $T -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force $T | Out-Null; $script:V2Data = $T
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'quality_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_质量.ps1"
 $pass = 0; $fail = 0; function Check($n, $ok) { if ($ok) { $script:pass++ } else { $script:fail++ }; "  [$(if ($ok) { 'PASS' } else { 'FAIL' })] $n" }
 function Q { @(if (Test-Path "$T\quality.jsonl") { Get-Content "$T\quality.jsonl" -Encoding UTF8 | ForEach-Object { $_ | ConvertFrom-Json } }) }

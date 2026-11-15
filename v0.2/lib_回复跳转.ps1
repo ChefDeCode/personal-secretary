@@ -42,7 +42,7 @@ function Invoke-ReplyJump($item, $drv) {
   $ok = & $drv.focusInput; & $step 'focus_input' $ok
   & $done $true $(if ($found) { '' } else { '已打开聊天，那条消息不在最近几屏里' })
 }
-function Write-JumpLog($res, [string]$app) { try { [IO.File]::AppendAllLines((Join-Path $script:V2Data 'jump_log.jsonl'), [string[]]@((@{ ts = (Get-Date).ToString('s'); app = $app; ok = $res.ok; steps = $res.steps } | ConvertTo-Json -Depth 4 -Compress)), (New-Object Text.UTF8Encoding $false)) } catch {} }
+function Write-JumpLog($res, [string]$app) { try { if ($env:SECRETARY_TEST -and (Get-Command Test-TestWriteBlocked -ErrorAction SilentlyContinue) -and (Test-TestWriteBlocked (Join-Path $script:V2Data 'jump_log.jsonl'))) { return }; [IO.File]::AppendAllLines((Join-Path $script:V2Data 'jump_log.jsonl'), [string[]]@((@{ ts = (Get-Date).ToString('s'); app = $app; ok = $res.ok; steps = $res.steps } | ConvertTo-Json -Depth 4 -Compress)), (New-Object Text.UTF8Encoding $false)) } catch {} }
 
 # —— 真实微信的驱动：叫过来用现有的 Move-WeChatHere；读界面用现有的 Read-WeChat；点击用窗口消息（不动用户的鼠标）；输入用 SendInput（此时微信在前台）——
 Add-Type @'

@@ -1,5 +1,6 @@
 ﻿# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 ChefDeCode
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder ([IO.Path]::GetFileNameWithoutExtension([string]$MyInvocation.PSCommandPath))   # 测试用自己的临时数据文件夹
 $ErrorActionPreference = 'Stop'
 $v2=Split-Path $PSScriptRoot -Parent
 $productRoot=Split-Path $v2 -Parent

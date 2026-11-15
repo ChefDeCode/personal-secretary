@@ -2,6 +2,7 @@
 # Copyright (C) 2026 ChefDeCode
 $ErrorActionPreference='Stop'
 $v2=Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'replied_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . (Join-Path $v2 'lib_v2.ps1')
 . (Join-Path $v2 'lib_后台任务.ps1')
 $tempRoot=Join-Path (Split-Path $v2 -Parent) 'review\test-temp';[void][IO.Directory]::CreateDirectory($tempRoot)

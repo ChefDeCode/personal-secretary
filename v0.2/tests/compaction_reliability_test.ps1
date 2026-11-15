@@ -15,6 +15,7 @@ function Get-ChatItems {
 }
 $v2Ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $v2 'lib_v2.ps1'),[ref]$null,[ref]$null)
 foreach($fn in $v2Ast.FindAll({param($a)$a -is [Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -in 'Get-SummaryData','Get-Summary'},$true)){. ([scriptblock]::Create($fn.Extent.Text))}
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'compaction_reliability_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . (Join-Path $v2 'lib_提醒.ps1')
 . (Join-Path $v2 'lib_上下文维护.ps1')
 function New-Scenario([string]$name){

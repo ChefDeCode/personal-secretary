@@ -3,6 +3,7 @@
 # 值守读 Outlook（假邮件窗口 + 临时设置）：没连接 → 不读；连接了 → 读一次交给整理；画面没变 → 不重复；最小化 → 不读
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent; $realRoot = Split-Path $v2 -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'mail_watch_test_foreground_original'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_v2.ps1"; . (Join-Path $realRoot 'lib_识别.ps1'); . "$v2\lib_虚拟桌面.ps1"; . "$v2\lib_邮件读.ps1"; . "$v2\lib_原地读.ps1"
 Add-Type 'using System; using System.Runtime.InteropServices; public static class MW2 { [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c); [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h); }'
 $pass = 0; $fail = 0; function Check($n, $ok) { if ($ok) { $script:pass++ } else { $script:fail++ }; "  [$(if ($ok) { 'PASS' } else { 'FAIL' })] $n" }

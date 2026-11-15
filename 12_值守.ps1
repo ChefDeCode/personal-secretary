@@ -115,6 +115,36 @@ function Save-Messages($conv, $msgs, [bool]$baseline, [string]$app = '微信') {
   }
   [void]$knownConv.Add($convKey); $n
 }
+# —— 微信这一轮存不存：标题和选中行都没认出来（标题来源 none、聊天名为空）就不存 ——
+# 存了就成了「没有聊天名」的消息：整理出的事、回复提醒都对不上聊天，同一句话之后还会换个空名字再存一遍。
+# 这一轮什么都不动（不存消息、不记「见过这个聊天」、首屏基线也不算），只记一次跳过；画面记录清掉，下一轮画面没变也再认一次（连续最多 3 次，免得一直重认）。
+# 下一次认出名字时，屏上这些消息照常存一次。标题直接认出、靠列表行补上的照旧。
+function Save-WeChatRead($res, [bool]$baseline) {
+  if ([string]$res.标题来源 -eq 'none') {
+    $stats.没认出聊天名跳过 = [int]$stats.没认出聊天名跳过 + 1
+    $script:NoNameRetry = [int]$script:NoNameRetry + 1; if ($script:NoNameRetry -le 3) { $script:lastFp = $null }
+    return @{ saved = 0; skipped = $true } }
+  $script:NoNameRetry = 0
+  @{ saved = [int](Save-Messages $res.会话 $res.消息 $baseline); skipped = $false }
+}
+# —— 透明读的保护（临时办法，根治之前）：微信被我们放出来读的时候自己抢了前台、又没能还给你，就先别再放它出来 ——
+# 一天里第 1 次：所有透明读（托盘里的、最小化的）停 60 分钟；同一天第 2 次：停到秘书下次启动。新的一天从 0 算。微信本来就在屏幕上时的读取不受影响。
+# 抢前台的两种迹象：这次快照读完前台变成了微信、没还回去；或者放回去以后它又弹出来、前台没还回去（Ghost2.RepopFgFail 变多）。暂停期间看到的算同一回，不重复记
+function Get-SnapGuard { if (-not $script:SnapGuard) { $script:SnapGuard = @{ day = ''; events = 0; until = [datetime]::MinValue; off = $false; seenFail = -1 } }; $script:SnapGuard }
+function Test-SnapAllowed([datetime]$now) { $g = Get-SnapGuard; (-not $g.off) -and $now -ge $g.until }
+function Register-SnapFgEvent([datetime]$now) {
+  $g = Get-SnapGuard; $d = $now.ToString('yyyy-MM-dd'); if ($g.day -ne $d) { $g.day = $d; $g.events = 0 }
+  $g.events++; $stats.透明读抢前台 = [int]$stats.透明读抢前台 + 1
+  if ($g.events -ge 2) { $g.off = $true; $stats.透明读停到重启 = [int]$stats.透明读停到重启 + 1 } else { $g.until = $now.AddMinutes(60); $stats.透明读暂停60分钟 = [int]$stats.透明读暂停60分钟 + 1 }
+  if (Get-Command Write-Quality -ErrorAction SilentlyContinue) { Write-Quality @{ ev = 'snap_guard'; events_today = $g.events; paused_min = $(if ($g.off) { -1 } else { 60 }); until_restart = [bool]$g.off } }
+}
+# 每一轮都调用（$rec = 这一轮快照读的记录，没有就 $null）；$repopFail = Ghost2.RepopFgFail 的当前值
+function Update-SnapGuard([datetime]$now, $rec, [int]$repopFail) {
+  $g = Get-SnapGuard; $newFail = $(if ($g.seenFail -ge 0) { $repopFail - $g.seenFail } else { 0 }); $g.seenFail = $repopFail
+  $hit = ($rec -and $rec.fg_changed -and [string]$rec.fg_who -eq 'ours' -and -not $rec.fg_restored) -or $newFail -gt 0
+  if ($hit -and (Test-SnapAllowed $now)) { Register-SnapFgEvent $now; return $true }   # 已经在暂停中：同一回的余波，不重复记
+  $false
+}
 
 # —— 自动适配过的其它软件：和微信同一轮读取（只读，不点不输入），同样的去重和首屏基线 ——
 # 画面没变就跳过；连续 3 次画面变了却什么都没读出来，说明界面变了：把适配标成过期，秘书会自动重新适配并提示用户
@@ -641,10 +671,11 @@ while ($true) {
     if ($h -eq [IntPtr]::Zero -and $wxPids.Count -and $ghostOn) { $h = [Ghost2]::HiddenMain([uint32[]]$wxPids, 400, 300) }   # 关在托盘里：主窗口还在，只是隐藏了
     $snapped = $false; if ($script:SnapFrame) { $script:SnapFrame.Dispose(); $script:SnapFrame = $null }
     if ($ghostOn -and [Ghost2]::NeedsGhost($h) -and $script:GhostNext -and (Get-Date) -lt $script:GhostNext) { throw [System.OperationCanceledException]::new('等下一次透明读') }   # 收起来的微信最多 20 秒透明读一次（省电、少打扰）
-    if ($ghostOn -and [Ghost2]::NeedsGhost($h) -and [Ghost2]::IdleMs() -ge 5000 -and ((Get-Date) - $script:WxLastFg).TotalSeconds -ge 30) {
+    [void](Update-SnapGuard (Get-Date) $null ([int][Ghost2]::RepopFgFail))   # 上一次放回去以后它又弹出来、前台没还回去：先停透明读
+    if ($ghostOn -and [Ghost2]::NeedsGhost($h) -and (Test-SnapAllowed (Get-Date)) -and [Ghost2]::IdleMs() -ge 5000 -and ((Get-Date) - $script:WxLastFg).TotalSeconds -ge 30) {
       $script:GhostNext = (Get-Date).AddSeconds(20)
       if ([IdleNow]::Ms() -lt 60000 -or -not (Get-Permission 'click_sessions')) {
-        $sn = Invoke-GhostSnap $h 200 0; $stats.透明快照 = [int]$stats.透明快照 + 1
+        $sn = Invoke-GhostSnap $h 200 0; $stats.透明快照 = [int]$stats.透明快照 + 1; [void](Update-SnapGuard (Get-Date) $sn.rec ([int][Ghost2]::RepopFgFail))
         if ($sn.rec -and $sn.rec.fg_changed) { $stats.透明读时前台变了 = [int]$stats.透明读时前台变了 + 1; if ($sn.rec.fg_restored) { $stats.透明还原时抢了前台 = [int]$stats.透明还原时抢了前台 + 1 } }
         if ($sn.slow) { $script:GhostSlow = [int]$script:GhostSlow + 1; $script:GhostNext = (Get-Date).AddSeconds([Math]::Min(300, 20 * [Math]::Pow(2, $script:GhostSlow))); $stats.透明读太慢 = [int]$stats.透明读太慢 + 1 } elseif ($sn.ok) { $script:GhostSlow = 0 }   # 截图太慢（超过 0.3 秒就收回去不要了）：下一次等久一点（40 秒、80 秒……最多 5 分钟）
         if (-not $sn.ok) { throw [System.OperationCanceledException]::new($sn.why) }
@@ -652,12 +683,12 @@ while ($true) {
       else {   # 你离开电脑 1 分钟以上：放出来久一点，可以点进有未读的聊天（这种单独记）
       $stats.透明长读 = [int]$stats.透明长读 + 1
       $fgB = [IdleNow]::Fg(); [void][Ghost]::Show($h); Start-Sleep -Milliseconds 350
-      if ([IdleNow]::Fg() -ne $fgB) { $k = Resolve-GhostFgChange $h $fgB; $stats.透明读时前台变了 = [int]$stats.透明读时前台变了 + 1; if ($k.restored) { $stats.透明还原时抢了前台 = [int]$stats.透明还原时抢了前台 + 1 }   # 只在是微信自己抢的、你也没动时才把前台还回去；你自己切的不改回来
+      if ([IdleNow]::Fg() -ne $fgB) { $k = Resolve-GhostFgChange $h $fgB; $stats.透明读时前台变了 = [int]$stats.透明读时前台变了 + 1; [void](Update-SnapGuard (Get-Date) @{ fg_changed = $true; fg_who = $k.who; fg_restored = $false } ([int][Ghost2]::RepopFgFail)); if ($k.restored) { $stats.透明还原时抢了前台 = [int]$stats.透明还原时抢了前台 + 1 }   # 只在是微信自己抢的、你也没动时才把前台还回去；你自己切的不改回来
         throw [System.OperationCanceledException]::new($(if ($k.restored) { '还原时抢了前台，已放回' } else { '前台换了，不是我们弄的' })) }
       $stats.透明还原来读 = [int]$stats.透明还原来读 + 1; if ([Ghost2]::WasHidden) { $stats.托盘里透明读 = [int]$stats.托盘里透明读 + 1 } } }   # 不清画面记录：和上次一样就不再识别
     if ($h -eq [IntPtr]::Zero -or ([Ghost2]::NeedsGhost($h) -and -not [Ghost]::Active -and -not $snapped)) {
       # 这一轮读不到：说一句原因（不去挪微信、不打开微信）
-      $why = if (-not $wxPids.Count) { '微信没开着' } elseif (-not $ghostOn) { '微信最小化了，打开它秘书就能读' } elseif ($h -eq [IntPtr]::Zero) { '没找到微信的窗口' } else { '微信收起来了：你停手几秒后秘书会悄悄读，不会弹出来' }
+      $why = if (-not $wxPids.Count) { '微信没开着' } elseif (-not $ghostOn) { '微信最小化了，打开它秘书就能读' } elseif ($h -eq [IntPtr]::Zero) { '没找到微信的窗口' } elseif (-not (Test-SnapAllowed (Get-Date))) { '微信收起来了：刚才悄悄读时它自己跳到了前台，先暂停悄悄读；打开微信时照常读' } else { '微信收起来了：你停手几秒后秘书会悄悄读，不会弹出来' }
       if ($why) { [IO.File]::WriteAllText((Join-Path $data 'hint.txt'), $why, (New-Object Text.UTF8Encoding $false)) }
       throw [System.OperationCanceledException]::new('微信不可读') }
     $bf = Join-Path $root 'v0.2\data\send_busy.flag'; if ((Test-Path $bf) -and ((Get-Date) - (Get-Item $bf).LastWriteTime).TotalSeconds -lt 120) { $stats.暂停轮次++; throw [System.OperationCanceledException]::new('正在替你发消息，这一轮不读') }
@@ -675,7 +706,7 @@ while ($true) {
     $script:KeepImages = $true   # 附上图片裁剪，供看图；本轮结束前释放
     $res = Read-WeChat $h $full; $full.Dispose()
     Update-WxEmptyCheck $res   # 自检：连续读不出东西就提醒一次
-    [void]$script:StageMs.recog.Add([int]$sw.ElapsedMilliseconds); $sp = $script:SpkPath; $script:SpkPath = @{}; Write-Quality @{ ev = 'read'; title = [string]$res.标题来源; ghost = [bool][Ghost]::Active; lines = @($res.消息).Count; unknown = @($res.消息 | Where-Object { $_.发送方 -eq '不确定' }).Count; paths = $sp }   # 质量记录：这一次「谁说的」各条路的次数
+    [void]$script:StageMs.recog.Add([int]$sw.ElapsedMilliseconds); $sp = $script:SpkPath; $script:SpkPath = @{}; Write-Quality @{ ev = 'read'; title = [string]$res.标题来源; ghost = [bool][Ghost]::Active; lines = @($res.消息).Count; unknown = @($res.消息 | Where-Object { $_.发送方 -eq '不确定' }).Count; paths = $sp; skip = [int]([string]$res.标题来源 -eq 'none'); diag = $res.诊断 }   # 质量记录：这一次「谁说的」各条路的次数
     [void]$ocrSecs.Add($sw.Elapsed.TotalSeconds); $stats.识别次数++
     $now = (Get-Date).ToString('s')
 
@@ -688,7 +719,7 @@ while ($true) {
     # 例外：当前打开的会话在列表里带着未读红点（微信在隐藏桌面上时，打开着的会话收到消息也不会标已读），
     # 说明屏上的消息里有值守开始前到达、用户还没看过的，不能当基线，要进今天清单
     $curUnread = [bool]($res.列表 | Where-Object { $_.未读 -and $_.选中 })
-    $swS = [Diagnostics.Stopwatch]::StartNew(); [void](Save-Messages $res.会话 $res.消息 (-not $curUnread)); $script:SaveMs = [int]$swS.ElapsedMilliseconds
+    $swS = [Diagnostics.Stopwatch]::StartNew(); [void](Save-WeChatRead $res (-not $curUnread)); $script:SaveMs = [int]$swS.ElapsedMilliseconds
     foreach ($m in $res.消息) { if ($m.图像) { $m.图像.Dispose(); $m.图像 = $null } }
     # 第 2 步：有未读就进去读一个（自带限速）；第 3 步：整理新消息（每分钟最多一次）
     $v0 = $stats.进入会话; $vb0 = [int]$stats.切回成功; $vf0 = [int]$stats.切回没成功; $va0 = [int]$stats.中途回来已切回 + [int]$stats.中途回来未切回; Visit-Unread $h $res

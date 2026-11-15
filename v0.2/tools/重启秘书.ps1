@@ -8,6 +8,9 @@ function Test-SecretaryScriptProcess($Process, [string]$ScriptPath) {
   $pattern = '(?i)(?:^|\s)-File\s+(?:"' + [regex]::Escape($ScriptPath) + '"|' + [regex]::Escape($ScriptPath) + ')(?:\s|$)'
   [bool]([string]$Process.CommandLine -match $pattern)
 }
+# 只有你自己点了「退出秘书」才算「你关掉的」（不再打开）；系统关机、更新换版也是干净退出，但不是你要关它。
+# 旧的状态文件没写原因时按「你关掉的」算（保守）
+function Test-UserQuitState($State) { [bool]($State -and [bool]$State.clean -and ([string]$State.how -eq 'user-quit' -or -not [string]$State.how)) }
 function Get-SecretaryRestartPlan($Processes, $RunState, [string]$ProjectV2, [bool]$Busy, [bool]$StartOnly, [int]$CallerPid = 0) {
   $root = Split-Path $ProjectV2 -Parent
   $mainScript = Join-Path $ProjectV2 '秘书.ps1'; $sendScript = Join-Path $ProjectV2 '发送.ps1'
@@ -16,9 +19,9 @@ function Get-SecretaryRestartPlan($Processes, $RunState, [string]$ProjectV2, [bo
   $senders = @($Processes | Where-Object { Test-SecretaryScriptProcess $_ $sendScript })
   if (-not $RunState) { return @{ allowed = $false; reason = 'state_missing'; pids = @() } }
   if ($Busy -or $senders.Count) { return @{ allowed = $false; reason = 'sending'; pids = @() } }
-  if ($RunState -and [bool]$RunState.clean) { return @{ allowed = $false; reason = 'user_closed'; pids = @() } }
-  # StartOnly is permitted for a recorded crash only; it cannot override clean user exit.
-  if (-not $main.Count -and -not ($StartOnly -and $RunState -and $RunState.clean -eq $false -and [int]$RunState.pid -gt 0)) {
+  if (Test-UserQuitState $RunState) { return @{ allowed = $false; reason = 'user_closed'; pids = @() } }
+  # StartOnly is permitted after a recorded crash, system shutdown or update; it cannot override a user quit.
+  if (-not $main.Count -and -not ($StartOnly -and $RunState -and -not (Test-UserQuitState $RunState) -and [int]$RunState.pid -gt 0)) {
     return @{ allowed = $false; reason = 'not_running'; pids = @() }
   }
   $scripts = @((Join-Path $root '12_值守.ps1'),(Join-Path $ProjectV2 '边缘线.ps1'),(Join-Path $root '07_AI边框特效.ps1'),$mainScript)
@@ -43,7 +46,7 @@ try {
   $plan = Get-SecretaryRestartPlan $processes $state $v2 (Test-Path -LiteralPath (Join-Path $v2 'data\send_busy.flag')) ([bool]$StartOnly) $PID
   if (-not $plan.allowed) { Write-Output ('restart=' + $plan.reason); exit 3 }
   # Recheck clean exit immediately before stopping; a user quit wins over this request.
-  if (Test-Path -LiteralPath $stateFile) { $current = Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json; if ($current.clean) { Write-Output 'restart=user_closed'; exit 3 } }
+  if (Test-Path -LiteralPath $stateFile) { $current = Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json; if (Test-UserQuitState $current) { Write-Output 'restart=user_closed'; exit 3 } }
   foreach ($procId in $plan.pids) {
     # Revalidate command line before terminating, so a reused PID cannot target another program.
     $currentProcesses = @(Get-CimInstance Win32_Process -Filter "ProcessId=$procId" -ErrorAction SilentlyContinue)
@@ -51,7 +54,7 @@ try {
     if ($fresh.pids -contains $procId) { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue }
   }
   if ($plan.pids.Count) { Start-Sleep -Milliseconds 500 }
-  if (Test-Path -LiteralPath $stateFile) { $current = Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json; if ($current.clean) { Write-Output 'restart=user_closed'; exit 3 } }
+  if (Test-Path -LiteralPath $stateFile) { $current = Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json; if (Test-UserQuitState $current) { Write-Output 'restart=user_closed'; exit 3 } }
   Start-Process explorer.exe -WindowStyle Hidden -ArgumentList ('"' + $exe + '"')
   Write-Output 'restart=launched'
 } finally { Exit-SendLease $lease }

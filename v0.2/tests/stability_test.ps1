@@ -4,6 +4,7 @@
 # a 每一步计时、慢了歇一会儿、出错不影响下一步；b 定时发送不会一直挂着「已开始」；c 服务器连不上：一句人话 + 退让；d 微信连续读空提醒一次；e 日志只留 30 天 / 2 MB；f 过去 24 小时的健康数字
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent; $root0 = Split-Path $v2 -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'stability_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_后台任务.ps1"; . "$v2\lib_v2.ps1"; . "$v2\lib_账号.ps1"
 $T = Join-Path $env:TEMP 'secretary_stability'; Remove-Item $T -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force "$T\v2\actions", "$T\root\data", "$T\root\v0.2\data" | Out-Null
 $script:V2Data = "$T\v2"; $script:ActDir = "$T\v2\actions"; $script:DataDir = "$T\root\data"; $script:ChatFile = "$T\v2\chat.jsonl"; $script:ChatArchive = "$T\v2\chat_archive.jsonl"

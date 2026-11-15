@@ -3,6 +3,7 @@
 # 真模型一次：虚构聊天（不是真聊天）走值守同一套提示词和格式，看「带时间的事」分得对不对、时间是不是照抄原话、聊天里的「指令」有没有被当真。只打印类型和数字
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent; $root = Split-Path $v2 -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'events_model_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_v2.ps1"; . "$v2\lib_账号.ps1"; . "$v2\lib_AI源.ps1"; . "$v2\lib_AI源_openai.ps1"
 $ast = [Management.Automation.Language.Parser]::ParseFile("$root\12_值守.ps1", [ref]$null, [ref]$null)
 foreach ($a in $ast.FindAll({ param($x) $x -is [Management.Automation.Language.AssignmentStatementAst] -and $x.Left.Extent.Text -in '$sysPrompt', '$schema' }, $false)) { . ([scriptblock]::Create($a.Extent.Text)) }

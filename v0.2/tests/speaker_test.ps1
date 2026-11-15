@@ -4,6 +4,7 @@
 # 不碰微信、不发任何鼠标键盘输入；所有文字都是虚构的。同时用旧规则（只看文字行位置）跑一遍做对比。
 $ErrorActionPreference = 'Stop'
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'speaker_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$root\lib_识别.ps1"
 function Assert($c, $l) { $script:tot++; if ($c) { $script:ok++ }; "  [{0}] {1}" -f $(if ($c) { 'PASS' } else { 'FAIL' }), $l }; $script:ok = 0; $script:tot = 0
 

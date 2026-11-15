@@ -13,7 +13,7 @@ $copyRoot=Join-Path $runRoot 'project'
 [void][IO.Directory]::CreateDirectory($copyRoot)
 $oldTemp=$env:TEMP;$oldTmp=$env:TMP
 $env:TEMP=Join-Path $runRoot 'temp';$env:TMP=$env:TEMP;[void][IO.Directory]::CreateDirectory($env:TEMP)
-$background=@('code_check_test','queue_incremental_test','uninstall_test', 'device_name_test', 'install_register_test','ghost_fg_test','quality_test','quote_name_test','sources_test','old_config_test','att_cap_test','reminder_resolved_test','layout_test','window_state_test','activity_test','events_test','schedule_test','retry_cancel_test','roundtrip_test','rules_test','replied_test','older_chat_test','stability_test','stale_result_test','send_guard_test','files_test','people_test','guard_test','extract_speaker_test','speaker_test','plugin_format_test','update_test','account_test','ai_provider_test','plugin_watch_test','mail_watch_test','web_watch_test','folder_source_test','mail_uia_test','web_source_test','live_noaccount_test','live_account_test','verify_official_plugins')
+$background=@('code_check_test','queue_incremental_test','uninstall_test', 'device_name_test', 'install_register_test', 'test_data_guard_test', 'preds_ui_test', 'shutdown_test', 'edge_share_test','ghost_fg_test','quality_test','quote_name_test','sources_test','old_config_test','att_cap_test','reminder_resolved_test','reminder_late_due_test','reminder_replied_chat_test','reminder_due_parse_test','watcher_noname_skip_test','title_band_test','restart_shutdown_state_test','snap_guard_test','layout_test','window_state_test','activity_test','events_test','schedule_test','retry_cancel_test','roundtrip_test','rules_test','replied_test','older_chat_test','stability_test','stale_result_test','send_guard_test','files_test','people_test','guard_test','extract_speaker_test','speaker_test','plugin_format_test','update_test','account_test','ai_provider_test','plugin_watch_test','mail_watch_test','web_watch_test','folder_source_test','mail_uia_test','web_source_test','live_noaccount_test','live_account_test','verify_official_plugins')
 $background += @(Get-ChildItem -LiteralPath (Join-Path $v2 'tests') -Filter '*_reliability_test.ps1' -File | ForEach-Object{$_.BaseName})
 $background=@($background|Select-Object -Unique)
 $unknown=@($Only|Where-Object {$background -notcontains $_});if($unknown.Count){throw ('Unknown or disabled test group count: '+$unknown.Count)}
@@ -83,14 +83,25 @@ try{
   # Only the clone's synthetic permissions are set; the user's file is never read or changed.
   $cfg=@{name='synthetic';permissions=@{read_screen=$false;scroll=$false;click_sessions=$false;cloud_images=$false;cloud_text=$true;send_messages=$true};features=@{watch_wechat=$false;watch_folders=$false;watch_outlook=$false};apps=@()}
   [IO.File]::WriteAllText((Join-Path $copyRoot 'config.json'),($cfg|ConvertTo-Json -Depth 5),[Text.UTF8Encoding]::new($false))
-  foreach($name in $background){
+  # 测试保护：每个测试进程都带 SECRETARY_TEST=1（往真正的数据文件夹写日志会被拒绝）；再记下真正数据里几个日志的大小和时间，跑完核对一个字节都没变
+  $env:SECRETARY_TEST='1'; $env:SECRETARY_REAL_V2=$v2   # 联网真测只读真正安装目录里的登录
+  $realLogs=@(foreach($n in 'quality.jsonl','send_log.jsonl','send_trace.jsonl','errors.log','reminders_log.jsonl','ghost_reads.jsonl','ghost_fg.jsonl','ui_steps.jsonl','exit_log.jsonl','jump_log.jsonl','task_history.jsonl'){Join-Path $v2 ('data\'+$n)})+@(foreach($n in 'messages.jsonl','todos.jsonl','attachments.jsonl'){Join-Path $product ('data\'+$n)})
+  $realBefore=@{};foreach($p in $realLogs){$realBefore[$p]=if(Test-Path -LiteralPath $p){$i=Get-Item -LiteralPath $p;"$($i.Length)|$($i.LastWriteTimeUtc.Ticks)"}else{'absent'}}  foreach($name in $background){
     if($Only.Count -and $Only -notcontains $name){continue}
     $row=Invoke-IsolatedTest $name;$rows+= $row
     '{0}: pass={1}, fail={2}, exit={3}, status={4}, ms={5}' -f $name,$row.pass,$row.fail,$row.exit,$row.status,$row.ms
     [IO.File]::WriteAllText((Join-Path $runRoot 'results.json'),($rows|ConvertTo-Json -Depth 5),[Text.UTF8Encoding]::new($false))
     Start-Sleep -Milliseconds 200
   }
-}finally{$env:TEMP=$oldTemp;$env:TMP=$oldTmp}
+}finally{$env:TEMP=$oldTemp;$env:TMP=$oldTmp;Remove-Item Env:SECRETARY_TEST,Env:SECRETARY_REAL_V2 -ErrorAction SilentlyContinue}
+# 核对：测试跑完，真正数据里的日志一个字节都没变（秘书正开着时它自己会写，这时不核对）
+$liveApp=@(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue|Where-Object{([string]$_.ExecutablePath).StartsWith($product,[StringComparison]::OrdinalIgnoreCase) -or ([string]$_.CommandLine -match [regex]::Escape($product) -and [string]$_.CommandLine -match '秘书\.ps1|12_值守|边缘线')}).Count
+if(-not $Only.Count -and $realBefore){
+  $changedLogs=@(foreach($p in $realLogs){$curSig=if(Test-Path -LiteralPath $p){$i=Get-Item -LiteralPath $p;"$($i.Length)|$($i.LastWriteTimeUtc.Ticks)"}else{'absent'};if($curSig -ne $realBefore[$p]){[IO.Path]::GetFileName($p)}})
+  $guardStatus=if($liveApp){'environment'}elseif($changedLogs.Count){'failed'}else{'passed'}
+  $rows+=[pscustomobject]@{name='real_data_untouched';pass=$(if($guardStatus -eq 'passed'){1}else{0});fail=$(if($guardStatus -eq 'failed'){1}else{0});exit=0;ms=0;status=$guardStatus;failed_assertions=@();diagnostics=@($changedLogs);native_pending=$false}
+  'real_data_untouched: changed={0}, secretary_running={1}, status={2}' -f $changedLogs.Count,$liveApp,$guardStatus
+}
 # —— 前台测试（会动测试窗口、借用前台、透明地读一下真微信）：只在你说「可以测」以后加 -Foreground 才跑；开始时你没离开 2 分钟就不跑，除非加 -Now
 #    在真正的安装目录里跑（要用测试窗口程序）；你一动鼠标键盘，那一组自己停下 → 这里暂停，等你再离开 2 分钟从这一组接着跑；45 分钟没等到空就放弃。永远不跑 picker_test（会打开记事本）
 $fgRows=@(); $fgNote='没跑（要跑：你说「可以测」后加 -Foreground）'; $pauses=0

@@ -22,6 +22,7 @@ function Enter-SecretaryLogLock([string]$Path, [int]$TimeoutMs = 10000) {
 function Add-SecretaryLogLines {
   param([string]$Path, [string[]]$Lines, [int]$TimeoutMs = 10000)
   if (-not $Lines -or -not $Lines.Count) { return }
+  if ($env:SECRETARY_TEST -and (Get-Command Test-TestWriteBlocked -ErrorAction SilentlyContinue) -and (Test-TestWriteBlocked $Path)) { return }
   $full = [IO.Path]::GetFullPath($Path)
   [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($full))
   $mutex = Enter-SecretaryLogLock $full $TimeoutMs
@@ -51,8 +52,8 @@ function Add-SecretaryLogLines {
 }
 
 # 当前版本和这一版改了什么（一句话）。每次改动只改这两行：值守和秘书启动时各在 quality.jsonl 里写一行版本标记，一周的数字能按改动前后分开看
-$script:SecretaryVersion = '0.2.0-reliability.20261106.4'
-$script:SecretaryChange = '卸载能卸干净：秘书在自己文件夹以外的改动都记进 data\changes.jsonl（开机快捷方式、注册表、环境变量、临时文件夹等，老改动已补记），设置→关于→「卸载秘书」或单独运行 卸载秘书.ps1 按倒序还原并核对剩余；修好「添加软件」列表打开就出错（concat 笔误）'
+$script:SecretaryVersion = '0.2.0-reliability.20261112.1'
+$script:SecretaryChange = '提醒和识别修复后重跑：当天简报后才整理出的事 / 时间已过的不弹「今天到期」；回过消息的聊天不再提醒「有人在等你回复」；截止原话里认错的日期横线、过去的日期、比消息还早的钟点不当截止；没认出聊天名的那一轮不存；宽窗口 / 矮窗口版面估错时在顶部整条里再找标题（title-band）；读取记录带诊断数字'
 function Write-ReliabilityVersionMark {
   param([string]$DataPath, [string]$Component, [string]$Version = $script:SecretaryVersion, [string]$Change = $script:SecretaryChange)
   if (-not $DataPath -or -not $Component) { return $false }

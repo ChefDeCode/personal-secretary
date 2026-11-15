@@ -2,6 +2,7 @@
 # Copyright (C) 2026 ChefDeCode
 # 透明读时前台变了：只有「我们放出来的那个软件自己抢的、你也没动」才把前台还回去；你自己切的窗口、别的软件换的前台，一律不改回来（不碰屏幕的规则测试）
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'ghost_fg_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 $v2 = Split-Path $PSScriptRoot -Parent; . "$v2\lib_原地读.ps1"
 $pass = 0; $fail = 0; function Check($n, $ok) { if ($ok) { $script:pass++ } else { $script:fail++ }; "  [$(if ($ok) { 'PASS' } else { 'FAIL' })] $n" }
 $other = (Get-Process explorer -ErrorAction SilentlyContinue | Select-Object -First 1).Id

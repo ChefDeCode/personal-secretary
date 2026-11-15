@@ -5,6 +5,7 @@
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
 $T = Join-Path $env:TEMP ('secretary_devname_' + [guid]::NewGuid().ToString('n').Substring(0, 6)); New-Item -ItemType Directory -Force "$T\data" | Out-Null
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'device_name_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_v2.ps1"
 [IO.File]::WriteAllText("$T\config.json", '{"server":{"model":"m"}}'); $script:CfgPath = "$T\config.json"; $script:V2Data = "$T\data"; $script:AcctDir = "$T\data"
 . "$v2\lib_账号.ps1"

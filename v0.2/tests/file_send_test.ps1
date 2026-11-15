@@ -3,6 +3,7 @@
 # 发文件测试：只在我们自己的模拟聊天软件上（对话框模式 + 输入框模式），不碰微信；按键只在前台是测试窗口时发
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'file_send_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$v2\lib_发文件.ps1"; . "$PSScriptRoot\lib_测试输入.ps1"
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 $AE = [Windows.Automation.AutomationElement]; $TS = [Windows.Automation.TreeScope]

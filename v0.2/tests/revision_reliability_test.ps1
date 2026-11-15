@@ -3,6 +3,7 @@
 param([switch]$Worker, [string]$DataRoot, [int]$WriterId = 0, [int]$Records = 40, [string]$Mode = 'write')
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'revision_reliability_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . (Join-Path $v2 'lib_版本.ps1')
 if ($Worker) {
   $script:V2Data = $DataRoot

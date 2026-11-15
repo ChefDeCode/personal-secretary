@@ -1,5 +1,6 @@
 ﻿# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 ChefDeCode
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'mail_watch_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$PSScriptRoot\lib_synthetic_test.ps1"
 Import-TestFunctions "$productRoot\12_值守.ps1" @('Watch-Mail')
 $root=Join-Path $env:TEMP ('secretary_mail_'+[guid]::NewGuid().ToString('n')); [void][IO.Directory]::CreateDirectory($root)

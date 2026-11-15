@@ -1,5 +1,6 @@
 ﻿# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 ChefDeCode
+. (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'mail_uia_test'   # 测试用自己的临时数据文件夹，不碰真的数据
 . "$PSScriptRoot\lib_synthetic_test.ps1"
 Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
 Import-TestFunctions "$v2\lib_邮件读.ps1" @('Read-MailUia') @{'[Windows.Automation.AutomationElement]::FromHandle($h)'='$script:TestRoot'}
