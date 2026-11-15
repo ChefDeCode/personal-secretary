@@ -38,7 +38,7 @@ Note "卸载秘书 $ts（$(if ($Mode -eq 'KeepData') { '保留我的数据' } el
 
 # 1) 等正在发的消息发完
 $busy = Join-Path $v2 'data\send_busy.flag'; $sw = [Diagnostics.Stopwatch]::StartNew()
-while ((Test-Path $busy) -and $sw.Elapsed.TotalSeconds -lt $SendWaitSec) { $op = 0; try { $op = [int](Get-Content $busy -Raw) } catch {}; if (-not $op -or -not (Get-Process -Id $op -ErrorAction SilentlyContinue)) { break }; Start-Sleep -Milliseconds 500 }
+while ((Test-Path $busy) -and $sw.Elapsed.TotalSeconds -lt $SendWaitSec) { $op = 0; try { $op = [int](Get-Content -Encoding UTF8 $busy -Raw) } catch {}; if (-not $op -or -not (Get-Process -Id $op -ErrorAction SilentlyContinue)) { break }; Start-Sleep -Milliseconds 500 }
 if ($sw.Elapsed.TotalSeconds -ge 1) { Note "等正在发的消息发完：等了 $([int]$sw.Elapsed.TotalSeconds) 秒" }
 if ((Test-Path $busy) -and $sw.Elapsed.TotalSeconds -ge $SendWaitSec) { Note '有一条消息一直没发完，已经不再等' }
 

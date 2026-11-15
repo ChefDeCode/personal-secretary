@@ -116,7 +116,7 @@ try{
   $packet=Execute-Job $job
   Check 'background_proactive_keeps_existing_dnd' ($script:counts.reminders -eq 1 -and $script:lastDnd -and $packet.data.sent -eq 1)
   Check 'proactive_plan_and_brief_survive_json' ($script:providerBodies.Count -eq 3 -and $script:PlanTask -and $script:BriefTask)
-  Check 'proactive_notice_written_only_to_fixture' ((Get-Content -LiteralPath (Join-Path $script:DataDir 'notice.json') -Raw|ConvertFrom-Json).kind -eq 'important')
+  Check 'proactive_notice_written_only_to_fixture' ((Get-Content -Encoding UTF8 -LiteralPath (Join-Path $script:DataDir 'notice.json') -Raw|ConvertFrom-Json).kind -eq 'important')
 
   # Event collection may prepare data, while action dispatch remains in the UI callback.
   $script:eventReads=0;$script:eventChoices=0;$script:eventBodyChoices=0;$script:eventBodyActive=$false;$script:eventSeen=New-Object Collections.ArrayList

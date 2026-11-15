@@ -52,8 +52,8 @@ function Add-SecretaryLogLines {
 }
 
 # 当前版本和这一版改了什么（一句话）。每次改动只改这两行：值守和秘书启动时各在 quality.jsonl 里写一行版本标记，一周的数字能按改动前后分开看
-$script:SecretaryVersion = '0.2.0-reliability.20261112.1'
-$script:SecretaryChange = '提醒和识别修复后重跑：当天简报后才整理出的事 / 时间已过的不弹「今天到期」；回过消息的聊天不再提醒「有人在等你回复」；截止原话里认错的日期横线、过去的日期、比消息还早的钟点不当截止；没认出聊天名的那一轮不存；宽窗口 / 矮窗口版面估错时在顶部整条里再找标题（title-band）；读取记录带诊断数字'
+$script:SecretaryVersion = '0.2.2-reliability.20261115.1'
+$script:SecretaryChange = '中文 Windows（系统代码页 936）下读数据文件一律按 UTF-8：提醒状态不再读坏、提醒不再重复弹；版本号改成 0.2.2'
 function Write-ReliabilityVersionMark {
   param([string]$DataPath, [string]$Component, [string]$Version = $script:SecretaryVersion, [string]$Change = $script:SecretaryChange)
   if (-not $DataPath -or -not $Component) { return $false }

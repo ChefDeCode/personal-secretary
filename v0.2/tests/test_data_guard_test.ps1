@@ -11,7 +11,7 @@ Check 'after loading, the message data folder is the test folder' ([IO.Path]::Ge
 Check 'after loading, the secretary data folder is the test folder' ([IO.Path]::GetFullPath($script:V2Data).StartsWith($tmp, [StringComparison]::OrdinalIgnoreCase))
 Check 'after loading, the settings file is the test copy' ([IO.Path]::GetFullPath($script:CfgPath).StartsWith($tmp, [StringComparison]::OrdinalIgnoreCase))
 Check 'paths made from them while loading (chat, people, done list) are in the test folder too' ((@($script:ChatFile, $script:PeopleFile, $script:DoneFile) | Where-Object { -not ([IO.Path]::GetFullPath($_).StartsWith($tmp, [StringComparison]::OrdinalIgnoreCase)) }).Count -eq 0)
-$cfg = try { Get-Content $script:CfgPath -Raw | ConvertFrom-Json } catch { $null }
+$cfg = try { Get-Content -Encoding UTF8 $script:CfgPath -Raw | ConvertFrom-Json } catch { $null }
 Check 'the settings copy holds no AI keys' (-not $cfg -or -not $cfg.ai -or -not $cfg.ai.keys -or -not @($cfg.ai.keys.PSObject.Properties).Count)
 # 往测试文件夹写：照常写
 Write-Quality @{ ev = 'guard-probe'; id = 'p1' }

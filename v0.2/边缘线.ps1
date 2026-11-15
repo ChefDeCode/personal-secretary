@@ -128,7 +128,7 @@ $ctl = New-Object EdgeCtl; $ctl.F = $form; $ctl.Scale = $scale; $ctl.H = $H
 
 # —— 位置：贴左/右边（默认右边、垂直居中），或自由摆放（设置里关掉“贴边”）——
 $script:side = 'right'; $script:freeX = $null; $script:topPx = $wa.Top + [int](($wa.Height - $hpx) / 2)
-if (Test-Path $posFile) { try { $p = Get-Content $posFile -Raw | ConvertFrom-Json; $script:side = [string]$p.side; if ($p.y -ne $null) { $script:topPx = [int]([double]$p.y * $scale) }; if ($p.side -eq 'free') { $script:freeX = [int]([double]$p.x * $scale) } } catch {} }
+if (Test-Path $posFile) { try { $p = Get-Content -Encoding UTF8 $posFile -Raw | ConvertFrom-Json; $script:side = [string]$p.side; if ($p.y -ne $null) { $script:topPx = [int]([double]$p.y * $scale) }; if ($p.side -eq 'free') { $script:freeX = [int]([double]$p.x * $scale) } } catch {} }
 function Page-Side { if ($script:side -eq 'free') { if (($form.Left + $wpx / 2) -lt ($wa.Left + $wa.Width / 2)) { 'left' } else { 'right' } } else { $script:side } }
 function Line-X { $W / 2 }
 # 目标位置（像素）：贴左/贴右时线离屏幕边 18；自由摆放就在原处
@@ -154,7 +154,7 @@ function Read-States {
   $cfg = $null; try { $cfg = Get-Content $script:CfgPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch {}
   $working = Test-Lit $stateFile
   $userPaused = $false; try { if ($null -ne $cfg.features.watch_wechat) { $userPaused = -not [bool]$cfg.features.watch_wechat } } catch {}; try { if ([bool]$cfg.features.paused) { $userPaused = $true } } catch {}
-  $open = $false; try { if (Test-Path $uiFile) { $open = [bool](Get-Content $uiFile -Raw -ErrorAction Stop | ConvertFrom-Json).miniOpen } } catch {}
+  $open = $false; try { if (Test-Path $uiFile) { $open = [bool](Get-Content -Encoding UTF8 $uiFile -Raw -ErrorAction Stop | ConvertFrom-Json).miniOpen } } catch {}
   $n = $null; try { if (Test-Path $noticeFile) { $n = Get-Content $noticeFile -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json } } catch {}
   $msg = @{ type = 'state'; base = $(if ($working) { 'reading' } elseif ($userPaused) { 'paused' } else { 'idle' }); alert = $null; dnd = [bool]$cfg.dnd; open = $open
             theme = [string]$cfg.ui_theme; side = (Page-Side); ripple = $false; pill = $null }
@@ -185,7 +185,7 @@ function Read-States {
 # 测量用：edge_test.json = {seq, base, alert, hover, drag, ripple, stats:"上一段的标签"}；seq 变了才生效
 function Apply-Test($msg) {
   $tf = Join-Path $dataV2 'edge_test.json'; if (-not (Test-Path $tf)) { return }
-  try { $tj = Get-Content $tf -Raw | ConvertFrom-Json } catch { return }
+  try { $tj = Get-Content -Encoding UTF8 $tf -Raw | ConvertFrom-Json } catch { return }
   if ($tj.seq -ne $script:testSeq) {
     $script:testSeq = $tj.seq; $script:testState = $tj
     if ($tj.stats) { Post @{ type = 'stats'; label = [string]$tj.stats; n = 600 } }

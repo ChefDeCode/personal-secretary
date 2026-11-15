@@ -12,7 +12,7 @@ $T = Join-Path $env:TEMP 'secretary_winstate'; Remove-Item $T -Recurse -Force -E
 $winFile = "$T\window.json"; $scale = 2.0
 function New-Rect($x, $y, $w, $h) { New-Object Drawing.Rectangle $x, $y, $w, $h }
 $primary = New-Rect 0 0 1440 860; $areas = @($primary); $default = New-Rect 960 0 480 860
-function Reopen { $s = Get-Content $winFile -Raw | ConvertFrom-Json; Resolve-WindowBounds $s $areas $default }
+function Reopen { $s = Get-Content -Encoding UTF8 $winFile -Raw | ConvertFrom-Json; Resolve-WindowBounds $s $areas $default }
 # 第一次用：默认
 $r = Resolve-WindowBounds $null $areas $default; Check 'first run -> default size (right third)' ($r.rect -eq $default -and -not $r.max)
 # 改过大小 → 存 → 重开一样
@@ -21,9 +21,9 @@ Save-WindowBounds; $r = Reopen; Check "after resizing to 790x700 -> reopens the 
 # 最大化 → 存 → 重开是最大化，还原时回到原来的大小
 $form.WindowState = 'Maximized'; $form.Bounds = New-Rect -7 -7 1454 874; Save-WindowBounds; $r = Reopen
 Check 'after maximizing -> reopens maximized, and restore goes back to 790x700' ($r.max -and $r.rect -eq (New-Rect 200 100 790 700))
-$j = Get-Content $winFile -Raw | ConvertFrom-Json; Check "monitor and DPI are stored too ($($j.screen), $($j.dpi))" ($j.screen -and $j.dpi -eq 192)
+$j = Get-Content -Encoding UTF8 $winFile -Raw | ConvertFrom-Json; Check "monitor and DPI are stored too ($($j.screen), $($j.dpi))" ($j.screen -and $j.dpi -eq 192)
 # 最小化 / 隐藏时不覆盖
-$form.WindowState = 'Minimized'; $before = Get-Content $winFile -Raw; Save-WindowBounds; Check 'minimized -> last good state kept' ((Get-Content $winFile -Raw) -eq $before)
+$form.WindowState = 'Minimized'; $before = Get-Content -Encoding UTF8 $winFile -Raw; Save-WindowBounds; Check 'minimized -> last good state kept' ((Get-Content -Encoding UTF8 $winFile -Raw) -eq $before)
 # 屏幕不在了：位置在一个已经拔掉的副屏上 → 放回主屏幕
 [IO.File]::WriteAllText($winFile, '{"x":2200,"y":100,"w":900,"h":700,"max":false}'); $r = Reopen
 Check "window on an unplugged monitor -> moved back onto the main screen ($($r.rect.X),$($r.rect.Y) $($r.rect.Width)x$($r.rect.Height))" ($primary.Contains($r.rect))
@@ -32,6 +32,6 @@ Check 'too big and far off-screen -> clamped to the main screen work area, still
 # 一半在屏幕外但抓得到：照旧
 [IO.File]::WriteAllText($winFile, '{"x":1200,"y":200,"w":600,"h":500,"max":false}'); $r = Reopen; Check 'partly off the edge but still grabbable -> kept where you left it' ($r.rect -eq (New-Rect 1200 200 600 500))
 # 坏文件 → 默认
-[IO.File]::WriteAllText($winFile, 'xx'); $s = $null; try { $s = Get-Content $winFile -Raw | ConvertFrom-Json } catch {}; $r = Resolve-WindowBounds $s $areas $default; Check 'broken file -> default size, no error' ($r.rect -eq $default)
+[IO.File]::WriteAllText($winFile, 'xx'); $s = $null; try { $s = Get-Content -Encoding UTF8 $winFile -Raw | ConvertFrom-Json } catch {}; $r = Resolve-WindowBounds $s $areas $default; Check 'broken file -> default size, no error' ($r.rect -eq $default)
 Check 'no temp file left behind (written in one piece)' (-not (Test-Path "$winFile.tmp"))
 "window_state_test: $pass pass, $fail fail"

@@ -70,9 +70,9 @@ try {
   $script:SecUiTiming=@{}
   Add-SecUiTiming 'fixed_test_step' 12; Add-SecUiTiming 'fixed_test_step' 120 $true
   $log=Join-Path $testRoot 'ui_steps.jsonl'; [void](Flush-SecUiTiming $log -Force); Drain
-  $records=@(Get-Content -LiteralPath $log | ForEach-Object {$_|ConvertFrom-Json}); $r=$records[-1]
+  $records=@(Get-Content -Encoding UTF8 -LiteralPath $log | ForEach-Object {$_|ConvertFrom-Json}); $r=$records[-1]
   Check 'timing_aggregates_persist' ($r.count -eq 2 -and $r.over100 -eq 1 -and $r.errors -eq 1 -and $r.max_ms -eq 120)
-  Check 'timing_contains_no_text_or_paths' ((Get-Content -LiteralPath $log -Raw) -notmatch 'fixed_test_step|secretary_runtime_|message|window')
+  Check 'timing_contains_no_text_or_paths' ((Get-Content -Encoding UTF8 -LiteralPath $log -Raw) -notmatch 'fixed_test_step|secretary_runtime_|message|window')
 
   $restart=Join-Path $v2 'tools\重启秘书.ps1'
   $ra=[Management.Automation.Language.Parser]::ParseFile($restart,[ref]$null,[ref]$null)
@@ -89,7 +89,7 @@ try {
   Check 'restart_requires_recorded_state' (-not (Get-SecretaryRestartPlan @() $null $root $false $true 99).allowed)
   Check 'recorded_crash_can_use_startonly' ((Get-SecretaryRestartPlan @() $active $root $false $true 99).allowed)
   Check 'normal_restart_does_not_open_inactive_app' (-not (Get-SecretaryRestartPlan @() $active $root $false $false 99).allowed)
-  $source=Get-Content -LiteralPath $restart -Raw
+  $source=Get-Content -Encoding UTF8 -LiteralPath $restart -Raw
   Check 'restart_uses_explorer_and_sender_lease' ($source -match 'Start-Process explorer.exe -WindowStyle Hidden' -and $source -match 'Enter-SendLease' -and $source -match 'finally \{ Exit-SendLease')
 } finally {
   Stop-SecWorkers

@@ -7,7 +7,7 @@
 function Get-EvPath { Join-Path $script:V2Data 'events.jsonl' }
 function Get-EvSeenPath { Join-Path $script:V2Data 'events_seen.txt' }
 function Get-EventKey([string]$conv, [string]$type, [string]$what, [string]$time) { $s = "$conv|$type|$(($what -replace '\s', '').ToLower())|$($time -replace '\s', '')"; $b = [Security.Cryptography.SHA1]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($s)); ([BitConverter]::ToString($b) -replace '-', '').Substring(0, 16) }
-function Get-NewEvents { $f = Get-EvPath; if (-not (Test-Path $f)) { return @() }; $seen = @{}; if (Test-Path (Get-EvSeenPath)) { foreach ($k in Get-Content (Get-EvSeenPath)) { $seen[$k] = 1 } }
+function Get-NewEvents { $f = Get-EvPath; if (-not (Test-Path $f)) { return @() }; $seen = @{}; if (Test-Path (Get-EvSeenPath)) { foreach ($k in Get-Content -Encoding UTF8 (Get-EvSeenPath)) { $seen[$k] = 1 } }
   $out = @(); $keys = @{}; foreach ($l in Get-Content $f -Encoding UTF8) { if (-not $l) { continue }; $e = $null; try { $e = (Unprotect $l) | ConvertFrom-Json } catch {}; if ($e -and -not $seen.ContainsKey($e.key) -and -not $keys.ContainsKey($e.key)) { $keys[$e.key] = 1; $out += $e } }; $out }
 function Set-EventSeen([string]$key) { Add-Content (Get-EvSeenPath) $key -Encoding UTF8 }
 

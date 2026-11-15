@@ -45,7 +45,7 @@ function Get-QualityNoteKind([string]$text) {
 
 # —— 每天过了午夜：把前一天的数字汇总成一行写进 quality_daily.txt ——
 function Write-QualityDaily([datetime]$now = (Get-Date)) {
-  $sf = Get-QualFile 'quality_state.json'; $st = $null; try { $st = Get-Content $sf -Raw -ErrorAction Stop | ConvertFrom-Json } catch {}
+  $sf = Get-QualFile 'quality_state.json'; $st = $null; try { $st = Get-Content -Encoding UTF8 $sf -Raw -ErrorAction Stop | ConvertFrom-Json } catch {}
   $last = if ($st -and $st.daily) { [datetime]$st.daily } else { $now.Date.AddDays(-1) }
   if ($last -ge $now.Date.AddDays(-1)) { if (-not $st) { [IO.File]::WriteAllText($sf, (@{ daily = $now.Date.AddDays(-1).ToString('yyyy-MM-dd') } | ConvertTo-Json -Compress)) }; return $null }
   $qf = Get-QualFile 'quality.jsonl'; $all = @(); if (Test-Path $qf) { $all = @(foreach ($l in [IO.File]::ReadLines($qf)) { try { $l | ConvertFrom-Json } catch {} }) }
@@ -104,7 +104,7 @@ function Get-MsStats($xs) { $a = @($xs | Sort-Object); if (-not $a.Count) { retu
 # 一天最多花 $0.30（到了就当天停）；不拖慢正常的整理：在单独的后台线程里跑，正常流程不等它
 $script:ShadowCapUsd = 0.30; $script:ShadowJobs = New-Object System.Collections.ArrayList
 $script:ShadowPrice = @{ sonnet_in = 2.0; sonnet_out = 10.0; haiku_in = 0.10; haiku_out = 0.50 }   # 每百万 tokens（Haiku 5.5：提示不超过 10 万 tokens 时的价格）
-function Get-ShadowSpent { $f = Get-QualFile 'shadow_state.json'; try { $s = Get-Content $f -Raw -ErrorAction Stop | ConvertFrom-Json; if ($s.date -eq (Get-Date).ToString('yyyy-MM-dd')) { return [double]$s.cost } } catch {}; 0.0 }
+function Get-ShadowSpent { $f = Get-QualFile 'shadow_state.json'; try { $s = Get-Content -Encoding UTF8 $f -Raw -ErrorAction Stop | ConvertFrom-Json; if ($s.date -eq (Get-Date).ToString('yyyy-MM-dd')) { return [double]$s.cost } } catch {}; 0.0 }
 function Add-ShadowSpent([double]$c) { $f = Get-QualFile 'shadow_state.json'; $now = Get-Date; $v = (Get-ShadowSpent) + $c; [IO.File]::WriteAllText($f, (@{ date = $now.ToString('yyyy-MM-dd'); cost = [Math]::Round($v, 5) } | ConvertTo-Json -Compress)) }
 function Start-HaikuShadow([string]$reqJson, $sonnetItems, [string]$conv, $sonnetUsage, [string]$key) {
   if ((Get-ShadowSpent) -ge $script:ShadowCapUsd) { return 'cap' }

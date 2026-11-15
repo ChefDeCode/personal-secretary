@@ -80,7 +80,7 @@ function Get-Settings {
 $script:DoneFile = Join-Path $script:V2Data 'done.json'
 function Get-DoneSet {
   $h = @{}
-  if (Test-Path $script:DoneFile) { try { (Get-Content $script:DoneFile -Raw | ConvertFrom-Json) | ForEach-Object { $h[$_] = $true } } catch {} }
+  if (Test-Path $script:DoneFile) { try { (Get-Content -Encoding UTF8 $script:DoneFile -Raw | ConvertFrom-Json) | ForEach-Object { $h[$_] = $true } } catch {} }
   foreach ($entry in (Get-TaskCompletionOverrides).GetEnumerator()) { if ($entry.Value) { $h[$entry.Key]=$true } else { $h.Remove($entry.Key) } }
   $h
 }
@@ -112,7 +112,7 @@ function Get-Today([datetime]$now=(Get-Date)) {
 # ———————————— 状态：小波浪（idle / reading / new / paused）与侧栏文字 ————————————
 function Get-WaveState {
   $pidFile = Join-Path $script:DataDir 'pid'
-  $watching = $false; try { $watching = (Test-Path $pidFile) -and [bool](Get-Process -Id ([int](Get-Content $pidFile -ErrorAction Stop)) -ErrorAction SilentlyContinue) } catch {}
+  $watching = $false; try { $watching = (Test-Path $pidFile) -and [bool](Get-Process -Id ([int](Get-Content -Encoding UTF8 $pidFile -ErrorAction Stop)) -ErrorAction SilentlyContinue) } catch {}
   # 只有用户手动关了“读取微信”才算暂停（线拉平变浅）；值守进程没在运行只是空闲（线照常微微起伏）
   if ((Get-Feature 'paused') -or -not (Get-Feature 'watch_wechat')) { return @{ state = 'paused'; text = '已暂停读取' } }
   if (-not (Get-Feature 'watcher')) { return @{ state = 'paused'; text = '值守已关闭' } }
@@ -163,7 +163,7 @@ function Update-ChatItem($item) {
 # 总长控制在约 800 字以内：超出时才把 stable 和较早的分段合并成新的 stable（由压缩那一步顺带完成）。
 function Get-SummaryData {
   if (-not (Test-Path $script:SummaryFile)) { return [pscustomobject]@{ stable = ''; segments = @() } }
-  $raw = Unprotect (Get-Content $script:SummaryFile -Raw)
+  $raw = Unprotect (Get-Content -Encoding UTF8 $script:SummaryFile -Raw)
   try { $o = $raw | ConvertFrom-Json; if ($null -ne $o.stable) { return [pscustomobject]@{ stable = [string]$o.stable; segments = @($o.segments | Where-Object { $_ }) } } } catch {}
   [pscustomobject]@{ stable = $raw; segments = @() }   # 旧格式：整段文字当作 stable
 }

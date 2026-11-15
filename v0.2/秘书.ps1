@@ -270,7 +270,7 @@ $paper = [Drawing.ColorTranslator]::FromHtml('#F4EFE6')
 if (-not ('ExitLog' -as [type])) { Add-Type -Path (Join-Path $PSScriptRoot 'ExitLog.cs') -ReferencedAssemblies System.Windows.Forms }
 [ExitLog]::LogPath = Join-Path $script:V2Data 'exit_log.jsonl'; [ExitLog]::StatePath = Join-Path $script:V2Data 'run_state.json'
 # 上一次是不是没有正常退出
-try { $rsPrev = Get-Content ([ExitLog]::StatePath) -Raw -ErrorAction Stop | ConvertFrom-Json
+try { $rsPrev = Get-Content -Encoding UTF8 ([ExitLog]::StatePath) -Raw -ErrorAction Stop | ConvertFrom-Json
   if (-not $rsPrev.clean -and -not (Get-Process -Id ([int]$rsPrev.pid) -ErrorAction SilentlyContinue)) { [ExitLog]::Write('previous-run-crashed-or-killed', "pid $($rsPrev.pid), last alive $($rsPrev.beat)") } } catch {}
 function Write-RunState { try { [IO.File]::WriteAllText([ExitLog]::StatePath, (@{ pid = $PID; clean = $false; started = $script:RunStarted; beat = (Get-Date).ToString('s') } | ConvertTo-Json -Compress), (New-Object Text.UTF8Encoding $false)) } catch {} }
 $script:RunStarted = (Get-Date).ToString('s'); Write-RunState; [ExitLog]::Install(); [ExitLog]::Write('start', $(if ($StartInTray) { 'tray' } else { 'window' }))
@@ -293,7 +293,7 @@ function Resolve-WindowBounds($saved, $areas, $default) {
     $r = New-Object Drawing.Rectangle ([Math]::Max($a.Left, $a.Right - $w)), $a.Top, $w, $h }
   @{ rect = $r; max = [bool]$saved.max }
 }
-$savedWin = $null; if (Test-Path $winFile) { try { $savedWin = Get-Content $winFile -Raw | ConvertFrom-Json } catch {} }
+$savedWin = $null; if (Test-Path $winFile) { try { $savedWin = Get-Content -Encoding UTF8 $winFile -Raw | ConvertFrom-Json } catch {} }
 $wb = Resolve-WindowBounds $savedWin (@([Windows.Forms.Screen]::PrimaryScreen.WorkingArea) + @([Windows.Forms.Screen]::AllScreens | ForEach-Object { $_.WorkingArea })) $form.Bounds
 $form.Bounds = $wb.rect; if ($wb.max) { $form.WindowState = 'Maximized' }   # 上次是最大化：在同一个屏幕上最大化打开
 function Save-WindowBounds {
@@ -352,7 +352,7 @@ function Request-WvRestart([string]$kind) {
   if ($kind -notin 'BrowserProcessExited', 'RenderProcessExited', 'RenderProcessUnresponsive') { return }
   if ([ExitLog]::Ending -or $script:quitting) { return }   # Windows 正在关机（浏览器进程是被系统关掉的）：不重开
   if ($script:WvRestartAt) { return }   # 只重开一次
-  $flag = Join-Path $script:V2Data 'wv_restart.txt'; try { $last = [datetime](Get-Content $flag -Raw) } catch { $last = [datetime]::MinValue }
+  $flag = Join-Path $script:V2Data 'wv_restart.txt'; try { $last = [datetime](Get-Content -Encoding UTF8 $flag -Raw) } catch { $last = [datetime]::MinValue }
   if (((Get-Date) - $last).TotalMinutes -lt 10) { return }   # 10 分钟内已经重开过：不再连环重开
   [IO.File]::WriteAllText($flag, (Get-Date).ToString('o')); $script:WvRestartAt = (Get-Date).AddSeconds(15) }
 function Q([string]$s) { "'" + ($s -replace "'", "''") + "'" }   # 把界面传来的文字安全地放进后台脚本
@@ -389,7 +389,7 @@ function Step-Login { if ($script:LoginPending -and -not $script:AcctJob -and (G
 # ———————————— Claude（异步） ————————————
 $http = New-Object System.Net.Http.HttpClient; $http.Timeout = [TimeSpan]::FromSeconds(120)
 $usageFile = Join-Path $script:V2Data 'usage.json'
-$script:Usage = if (Test-Path $usageFile) { Get-Content $usageFile -Raw | ConvertFrom-Json } else { [pscustomobject]@{ calls = 0; input = 0; output = 0; cacheRead = 0; usd = 0.0 } }
+$script:Usage = if (Test-Path $usageFile) { Get-Content -Encoding UTF8 $usageFile -Raw | ConvertFrom-Json } else { [pscustomobject]@{ calls = 0; input = 0; output = 0; cacheRead = 0; usd = 0.0 } }
 function Convert-BackgroundValue($value) {
   if ($null -eq $value) { return $null }
   $baseValue = $value.PSObject.BaseObject
@@ -595,7 +595,7 @@ function Finish-MemReflect {
 $script:WatchRestarts = New-Object System.Collections.ArrayList; $script:WatchNext = [datetime]::MinValue; $script:WatchGaveUp = $false
 function Get-WatcherPid {
   $pf = Join-Path $script:DataDir 'pid'; if (-not (Test-Path $pf)) { return 0 }
-  $p = [int](Get-Content $pf -ErrorAction SilentlyContinue); if (-not $p) { return 0 }
+  $p = [int](Get-Content -Encoding UTF8 $pf -ErrorAction SilentlyContinue); if (-not $p) { return 0 }
   $c = Get-CimInstance Win32_Process -Filter "ProcessId=$p" -ErrorAction SilentlyContinue; if ($c -and $c.CommandLine -match '12_值守\.ps1') { $p } else { 0 }
 }
 function Start-Watcher { try { & (Join-Path $script:Root '12_值守.ps1') -Start | Out-Null } catch { Write-ErrorLog $_.Exception 'watcher-start' } }
@@ -620,7 +620,7 @@ function Post-Upcoming([switch]$Force) {
   if ($script:ReadView) { Post @{type='upcoming';days=@($script:ReadView.upcoming)} }
   Request-ReadSnapshot -Force:$Force
 }
-function Get-CachedBrief([datetime]$now) { $f = Join-Path $script:V2Data 'brief.json'; try { $b = (MemU (Get-Content $f -Raw)) | ConvertFrom-Json; if ($b.date -eq $now.ToString('yyyy-MM-dd') -and $b.text) { return [string]$b.text } } catch {}; Get-LocalBrief $now }
+function Get-CachedBrief([datetime]$now) { $f = Join-Path $script:V2Data 'brief.json'; try { $b = (MemU (Get-Content -Encoding UTF8 $f -Raw)) | ConvertFrom-Json; if ($b.date -eq $now.ToString('yyyy-MM-dd') -and $b.text) { return [string]$b.text } } catch {}; Get-LocalBrief $now }
 function Tick-Proactive {
   $now=Get-Date
   if($script:PlanTask -and $script:PlanTask.IsCompleted){
@@ -705,7 +705,7 @@ $script:ReplyTasks = @{}
 # 预测回复（两边共用）：每条「需要你回」后台请一次模型给 3 句（最可能的在前），存在 data\reply_preds.json（加密）；打开回复、小浮窗、提醒卡都用这一份
 $script:PredFile = Join-Path $script:V2Data 'reply_preds.json'; $script:PredNextCheck = $null; $script:PredTask = $null; $script:PredDay = ''; $script:PredCount = 0
 $script:GenericReplies = @('好的，收到', '我晚点回复你', '稍等，我确认一下')
-function Get-Preds { $h = @{}; if (Test-Path $script:PredFile) { try { ((Unprotect (Get-Content $script:PredFile -Raw)) | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $h[$_.Name] = $_.Value } } catch {} }; $h }
+function Get-Preds { $h = @{}; if (Test-Path $script:PredFile) { try { ((Unprotect (Get-Content -Encoding UTF8 $script:PredFile -Raw)) | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $h[$_.Name] = $_.Value } } catch {} }; $h }
 function Save-Preds($h) { $keep = @{}; foreach ($k in @($h.Keys)) { $keep[$k] = $h[$k] }; [IO.File]::WriteAllText($script:PredFile, (Protect ($keep | ConvertTo-Json -Depth 4 -Compress))) }
 function New-ReplyBody([string]$who, [string]$quote) {
   @{ model = 'claude-sonnet-5-5'; max_tokens = 600; output_config = @{ effort = 'low'; format = @{ type = 'json_schema'; schema = @{ type = 'object'; additionalProperties = $false; required = @('options'); properties = @{ options = @{ type = 'array'; items = @{ type = 'string' } } } } } }
@@ -743,7 +743,7 @@ function Find-TodoItem([string]$id) {
 function Get-ReminderView { $h = Get-Preds; @(Get-ActiveReminders | ForEach-Object { if ([string]$_.id -match '^reply\|t:(.+)$') { $_.todoId = $Matches[1]; $ti = Find-TodoItem $Matches[1]; if ($ti) { $p = $h[$ti.id]; if ($p) { $ti.preds = @($p.opts); $ti.predFallback = [bool]$p.fallback }; $_.item = $ti } }; $_ }) }
 # 你已经回过的就不再挂着：「需要你回」的那条之后，值守在同一个聊天里看到你自己发了话 → 自动算完成，预测回复和「等你回复」的提醒一起收掉
 $script:RepliedLast = [datetime]::MinValue
-function Get-AutoReplied { $f = Join-Path $script:V2Data 'auto_replied.json'; $h = @{}; if (Test-Path $f) { try { (Get-Content $f -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $h[$_.Name] = [string]$_.Value } } catch {} }; $h }   # id → auto（自动算已回复）/ kept（你撤销过，不再自动收）
+function Get-AutoReplied { $f = Join-Path $script:V2Data 'auto_replied.json'; $h = @{}; if (Test-Path $f) { try { (Get-Content -Encoding UTF8 $f -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $h[$_.Name] = [string]$_.Value } } catch {} }; $h }   # id → auto（自动算已回复）/ kept（你撤销过，不再自动收）
 function Save-AutoReplied($h) { [IO.File]::WriteAllText((Join-Path $script:V2Data 'auto_replied.json'), ($h | ConvertTo-Json -Compress), (New-Object Text.UTF8Encoding $false)) }
 # 每个聊天里最近读到的消息（按时间）：时间、是不是你、谁说的；你说的话再带上文字（群里要看是不是 @ 了对方）
 function Get-RecentByConv {
@@ -785,9 +785,9 @@ function Step-RepliedAlready {
     $closed=@($changes|Where-Object completed)
     if($closed.Count){
       $af=Join-Path $script:V2Data 'auto_replied.json';$ar=@{}
-      if(Test-Path -LiteralPath $af){try{(Get-Content -LiteralPath $af -Raw|ConvertFrom-Json).PSObject.Properties|ForEach-Object {$ar[$_.Name]=[string]$_.Value}}catch{}}
+      if(Test-Path -LiteralPath $af){try{(Get-Content -Encoding UTF8 -LiteralPath $af -Raw|ConvertFrom-Json).PSObject.Properties|ForEach-Object {$ar[$_.Name]=[string]$_.Value}}catch{}}
       $pf=Join-Path $script:V2Data 'reply_preds.json';$preds=@{}
-      if(Test-Path -LiteralPath $pf){try{((Unprotect (Get-Content -LiteralPath $pf -Raw))|ConvertFrom-Json).PSObject.Properties|ForEach-Object {$preds[$_.Name]=$_.Value}}catch{}}
+      if(Test-Path -LiteralPath $pf){try{((Unprotect (Get-Content -Encoding UTF8 -LiteralPath $pf -Raw))|ConvertFrom-Json).PSObject.Properties|ForEach-Object {$preds[$_.Name]=$_.Value}}catch{}}
       foreach($x in $closed){$ar[$x.id]='auto';$preds.Remove([string]$x.id);Write-Quality @{ev='outcome';src='today';id=[string]$x.id;out='自动收掉';replied=$true}}
       Write-FileAtomic $af ($ar|ConvertTo-Json -Compress)
       Write-FileAtomic $pf (Protect ($preds|ConvertTo-Json -Depth 5 -Compress))
@@ -1418,7 +1418,7 @@ $miniAnim = New-Object Windows.Forms.Timer; $miniAnim.Interval = 15; $script:mx0
 $miniAnim.add_Tick({ $p = [Math]::Min(1, ((Get-Date) - $script:mt0).TotalMilliseconds / 180); $mini.Left = [int]($script:mx0 + ($script:mx1 - $script:mx0) * (1 - [Math]::Pow(1 - $p, 3))); if ($p -ge 1) { $miniAnim.Stop() } })
 function Place-Mini {
   $lx = $scr.Right - [int](16 * $scale); $ly = $scr.Top + $scr.Height / 2; $side = 'right'
-  try { $e = Get-Content (Join-Path $script:V2Data 'edge_pos.json') -Raw | ConvertFrom-Json; $lx = [int]($e.lineX * $e.scale); $ly = [int]($e.lineY * $e.scale); $side = [string]$e.side } catch {}
+  try { $e = Get-Content -Encoding UTF8 (Join-Path $script:V2Data 'edge_pos.json') -Raw | ConvertFrom-Json; $lx = [int]($e.lineX * $e.scale); $ly = [int]($e.lineY * $e.scale); $side = [string]$e.side } catch {}
   $gap = [int](16 * $scale)
   $x1 = if ($side -eq 'left') { $lx + $gap } else { $lx - $gap - $mw }
   $y = [Math]::Max($scr.Top, [Math]::Min($scr.Bottom - $mh, $ly - [int]($mh / 2)))
@@ -1565,7 +1565,7 @@ $poll.add_Tick({
   Step '预测回复' { Step-Preds }
   Step '连接卡' {   # 装了 Outlook、你还没决定读不读 → 出一张连接卡（只出一次）；不点不读
     if (-not $script:SrcOffered) { $script:SrcOffered = $true
-      $fe = (Read-Config).features; $offF = Join-Path $script:V2Data 'offers.json'; $offs = @(); if (Test-Path $offF) { try { $offs = @((Get-Content $offF -Raw | ConvertFrom-Json) | ForEach-Object { $_ } | ForEach-Object { if ($_ -is [string]) { $_ } else { @($_.value) } }) } catch {} }   # PS5 读 JSON 数组会整个当成一项：先展开
+      $fe = (Read-Config).features; $offF = Join-Path $script:V2Data 'offers.json'; $offs = @(); if (Test-Path $offF) { try { $offs = @((Get-Content -Encoding UTF8 $offF -Raw | ConvertFrom-Json) | ForEach-Object { $_ } | ForEach-Object { if ($_ -is [string]) { $_ } else { @($_.value) } }) } catch {} }   # PS5 读 JSON 数组会整个当成一项：先展开
       if ($null -eq $fe.watch_outlook -and $offs -notcontains 'outlook' -and (Get-Settings).outlookInstalled) {
         $si = Add-ChatItem @{ role = 'ai'; card = @{ kind = 'source'; status = 'open'; key = 'src_outlook'; title = '要让秘书读 Outlook 邮件吗？'; body = 'Outlook 开着（没最小化）时，秘书在原地只读邮件列表和你打开的那封邮件，从里面整理出要回的、要做的、开会和截止时间，出成卡片给你。不点、不打字、不发信、不动窗口。随时能在 设置 → 读取来源 里关掉。'; opts = @('连接', '先不用'); noInput = $true } }
         $si.card.itemId = $si.id; Update-ChatItem $si; Post @{ type = 'item'; item = $si }; $offs = @(@($offs) + 'outlook'); [IO.File]::WriteAllText($offF, (ConvertTo-Json @($offs)), (New-Object Text.UTF8Encoding $false)) }

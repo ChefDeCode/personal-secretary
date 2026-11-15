@@ -23,12 +23,12 @@ New-Item -ItemType Directory -Force $data | Out-Null
 $pidFile = Join-Path $data 'pid'; $stateFile = Join-Path $data 'state.json'
 
 if ($Stop) {
-  if (Test-Path $pidFile) { $p = [int](Get-Content $pidFile); Stop-Process -Id $p -ErrorAction SilentlyContinue; Remove-Item $pidFile; Write-Host "值守已停止（pid $p），边缘线和边框会随之退出" }
+  if (Test-Path $pidFile) { $p = [int](Get-Content -Encoding UTF8 $pidFile); Stop-Process -Id $p -ErrorAction SilentlyContinue; Remove-Item $pidFile; Write-Host "值守已停止（pid $p），边缘线和边框会随之退出" }
   else { Write-Host '值守没有在运行' }
   exit
 }
 if ($Start) {
-  if ((Test-Path $pidFile) -and (Get-Process -Id ([int](Get-Content $pidFile)) -ErrorAction SilentlyContinue)) { Write-Host '值守已经在运行'; exit }
+  if ((Test-Path $pidFile) -and (Get-Process -Id ([int](Get-Content -Encoding UTF8 $pidFile)) -ErrorAction SilentlyContinue)) { Write-Host '值守已经在运行'; exit }
   $p = Start-Process powershell -WindowStyle Hidden -PassThru -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$PSCommandPath,'-Interval',$Interval,'-Process',$Process)
   Set-Content $pidFile $p.Id; Write-Host "值守已在后台启动（pid $($p.Id)）。查看：秘书窗口；停止：-Stop"; exit
 }
@@ -56,7 +56,7 @@ function Protect([string]$s) { if ($null -eq $s) { $s = '' }; [Convert]::ToBase6
 function Unprotect([string]$b) { try { [Text.Encoding]::UTF8.GetString([Security.Cryptography.ProtectedData]::Unprotect([Convert]::FromBase64String($b), $entropy, 'CurrentUser')) } catch { '' } }
 $keyFile = Join-Path $data 'hmac.key'
 if (-not (Test-Path $keyFile)) { $k = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($k); [IO.File]::WriteAllText($keyFile, [Convert]::ToBase64String([Security.Cryptography.ProtectedData]::Protect($k, $entropy, 'CurrentUser'))) }
-$hmac = New-Object Security.Cryptography.HMACSHA256 (,[Security.Cryptography.ProtectedData]::Unprotect([Convert]::FromBase64String((Get-Content $keyFile -Raw)), $entropy, 'CurrentUser'))
+$hmac = New-Object Security.Cryptography.HMACSHA256 (,[Security.Cryptography.ProtectedData]::Unprotect([Convert]::FromBase64String((Get-Content -Encoding UTF8 $keyFile -Raw)), $entropy, 'CurrentUser'))
 function KeyOf([string]$s) { [BitConverter]::ToString($hmac.ComputeHash([Text.Encoding]::UTF8.GetBytes($s))).Replace('-', '').Substring(0, 32) }
 
 $msgFile = Join-Path $data 'messages.jsonl'; $listFile = Join-Path $data 'list_latest.json'; $statsFile = Join-Path $data 'stats.json'
@@ -164,13 +164,13 @@ function Watch-Adapted {
       # 每轮先校正消息区下沿（界面挪动时用新位置读）；连续 3 轮和保存的位置差 2% 以上 → 适配过期，交给秘书重建并提示
       $savedY1 = [double]$ad.messages.y1; [void](Refine-Layout $ad $img 0.15)
       if ([Math]::Abs([double]$ad.messages.y1 - $savedY1) -gt 0.02) { $script:AppDrift[$ad.proc] = [int]$script:AppDrift[$ad.proc] + 1 } else { $script:AppDrift[$ad.proc] = 0 }
-      if ($script:AppDrift[$ad.proc] -ge 3) { $sf = Join-Path $root "v0.2\data\adapters\$($ad.proc).status.json"; $s = Get-Content $sf -Raw | ConvertFrom-Json; $s.state = 'stale'; $s.step = '界面变了'; [IO.File]::WriteAllText($sf, ($s | ConvertTo-Json -Depth 6 -Compress), (New-Object Text.UTF8Encoding $false)); $script:AppDrift[$ad.proc] = 0; $stats.适配过期++ }
+      if ($script:AppDrift[$ad.proc] -ge 3) { $sf = Join-Path $root "v0.2\data\adapters\$($ad.proc).status.json"; $s = Get-Content -Encoding UTF8 $sf -Raw | ConvertFrom-Json; $s.state = 'stale'; $s.step = '界面变了'; [IO.File]::WriteAllText($sf, ($s | ConvertTo-Json -Depth 6 -Compress), (New-Object Text.UTF8Encoding $false)); $script:AppDrift[$ad.proc] = 0; $stats.适配过期++ }
       $script:GKeepImages = [bool](Get-Feature 'save_attachments'); $g = Read-Generic $ad $img; $title = Read-GenericTitle $ad $img; $img.Dispose()
       [void]$script:appSecs.Add($sw2.Elapsed.TotalSeconds)
       if (-not @($g.msgs).Count -and -not @($g.rows).Count) {
         $script:AppEmpty[$ad.proc] = [int]$script:AppEmpty[$ad.proc] + 1
         if ($script:AppEmpty[$ad.proc] -ge 3) {
-          $sf = Join-Path $root "v0.2\data\adapters\$($ad.proc).status.json"; $s = Get-Content $sf -Raw | ConvertFrom-Json
+          $sf = Join-Path $root "v0.2\data\adapters\$($ad.proc).status.json"; $s = Get-Content -Encoding UTF8 $sf -Raw | ConvertFrom-Json
           $s.state = 'stale'; $s.step = '界面变了'; [IO.File]::WriteAllText($sf, ($s | ConvertTo-Json -Depth 6 -Compress), (New-Object Text.UTF8Encoding $false)); $script:AppEmpty[$ad.proc] = 0 }
         continue
       }
@@ -192,7 +192,7 @@ $script:FolderLast = [datetime]::MinValue
 # —— Edge（打开开关、而且网站在你的清单里才读）：每 60 秒看一次你正开着的那个标签页 ——
 $script:EdgeLast = [datetime]::MinValue; $script:EdgeSig = ''
 function Watch-Edge {
-  $cfg = Get-Content (Join-Path $root 'config.json') -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
+  $cfg = Get-Content -Encoding UTF8 (Join-Path $root 'config.json') -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
   if (-not [bool]$cfg.features.watch_edge -or -not @(@($cfg.edge_sites) | Where-Object { $_ }).Count) { return }
   if (((Get-Date) - $script:EdgeLast).TotalSeconds -lt 60) { return }; $script:EdgeLast = Get-Date
   if (-not (Get-Command Read-EdgeUia -ErrorAction SilentlyContinue)) { return }
@@ -204,7 +204,7 @@ function Watch-Edge {
   } catch { $stats.错误++; $stats.最后错误 = "读 Edge：$($_.Exception.Message)" }
 }
 function Watch-Folders {
-  if (-not [bool](Get-Content (Join-Path $root 'config.json') -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json).features.watch_folders) { return }
+  if (-not [bool](Get-Content -Encoding UTF8 (Join-Path $root 'config.json') -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json).features.watch_folders) { return }
   if (((Get-Date) - $script:FolderLast).TotalSeconds -lt 120) { return }; $script:FolderLast = Get-Date
   if (-not (Get-Command Get-FolderChanges -ErrorAction SilentlyContinue)) { return }
   try {
@@ -215,7 +215,7 @@ function Watch-Folders {
   } catch { $stats.错误++; $stats.最后错误 = "看文件夹：$($_.Exception.Message)" }
 }
 function Watch-Mail {
-  if (-not [bool](Get-Content (Join-Path $root 'config.json') -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json).features.watch_outlook) { return }
+  if (-not [bool](Get-Content -Encoding UTF8 (Join-Path $root 'config.json') -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json).features.watch_outlook) { return }
   if (((Get-Date) - $script:MailLast).TotalSeconds -lt 60) { return }; $script:MailLast = Get-Date
   if (-not (Get-Command Read-MailUia -ErrorAction SilentlyContinue)) { return }
   $mw = Get-MailWindow -AllowMin; if (-not $mw) { return }
@@ -556,9 +556,9 @@ Write-Preview
 $script:SecDownSince = $null
 function Watch-Secretary {
   $sf = Join-Path $root 'v0.2\data\run_state.json'; if (-not (Test-Path $sf)) { return }
-  $rs = try { Get-Content $sf -Raw | ConvertFrom-Json } catch { return }
+  $rs = try { Get-Content -Encoding UTF8 $sf -Raw | ConvertFrom-Json } catch { return }
   if ($rs.clean -or (Get-Process -Id ([int]$rs.pid) -ErrorAction SilentlyContinue)) { $script:SecDownSince = $null; return }
-  $lf = Join-Path $root 'v0.2\data\relaunch_log.json'; $log = @(); if (Test-Path $lf) { try { $log = @(Get-Content $lf -Raw | ConvertFrom-Json | ForEach-Object { [datetime]$_ }) } catch {} }
+  $lf = Join-Path $root 'v0.2\data\relaunch_log.json'; $log = @(); if (Test-Path $lf) { try { $log = @(Get-Content -Encoding UTF8 $lf -Raw | ConvertFrom-Json | ForEach-Object { [datetime]$_ }) } catch {} }
   $log = @($log | Where-Object { ((Get-Date) - $_).TotalHours -lt 1 })
   if ($log.Count -ge 3) { $gu = Join-Path $root 'v0.2\data\relaunch_gave_up'; if (-not (Test-Path $gu)) { [IO.File]::WriteAllText($gu, (Get-Date).ToString('s')) }; return }   # 一小时里已经重开 3 次：不再重开，下次手动打开时提示
   if (-not $script:SecDownSince) { $script:SecDownSince = Get-Date }
@@ -664,10 +664,10 @@ while ($true) {
     if ($wxPids -contains [int]$fgPid) { $script:WxLastFg = Get-Date }
     # 「原地值守」（默认开，read_in_place = false 才关）：不挪微信。开着的微信随时只截图读（不点不按）；点进别的聊天这类操作只在你 1 分钟没动电脑、也没在用微信时做。
     # 最小化的微信：你 1 分钟没动电脑时，全透明 + 点不着地还原来读，你一碰鼠标键盘（或读完）马上放回最小化
-    $inPlace = -not ((Get-Content (Join-Path $root 'config.json') -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json).features.read_in_place -eq $false)
+    $inPlace = -not ((Get-Content -Encoding UTF8 (Join-Path $root 'config.json') -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json).features.read_in_place -eq $false)
     # 最小化 / 关在托盘里的微信也读（默认开，ghost_read = false 才关）：你停手 5 秒、30 秒内没用过微信时，全透明 + 点不着、不激活地放出来读，读完放回原样（最小化的回最小化，隐藏的回隐藏）；
     # 你一碰鼠标键盘马上放回去。微信不会弹出来，前台也不会变。微信没开着就不去打开它
-    $ghostOn = $inPlace -and -not ((Get-Content (Join-Path $root 'config.json') -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json).features.ghost_read -eq $false)
+    $ghostOn = $inPlace -and -not ((Get-Content -Encoding UTF8 (Join-Path $root 'config.json') -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json).features.ghost_read -eq $false)
     if ($h -eq [IntPtr]::Zero -and $wxPids.Count -and $ghostOn) { $h = [Ghost2]::HiddenMain([uint32[]]$wxPids, 400, 300) }   # 关在托盘里：主窗口还在，只是隐藏了
     $snapped = $false; if ($script:SnapFrame) { $script:SnapFrame.Dispose(); $script:SnapFrame = $null }
     if ($ghostOn -and [Ghost2]::NeedsGhost($h) -and $script:GhostNext -and (Get-Date) -lt $script:GhostNext) { throw [System.OperationCanceledException]::new('等下一次透明读') }   # 收起来的微信最多 20 秒透明读一次（省电、少打扰）

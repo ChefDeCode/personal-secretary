@@ -41,9 +41,9 @@ if (-not (Get-Switch 'send_messages')) { Step '「替你发消息和文件」已
 # 三道闸（防止同一条被好几个发送程序同时 / 反复去发；2026-11-01 23:00 出过一次）
 # 1) 别的发送程序正在借用微信 → 这次不动，交给秘书排队
 $busy = Join-Path $script:V2Data 'send_busy.flag'
-if (Test-Path $busy) { $op = 0; try { $op = [int](Get-Content $busy -Raw) } catch {}; if ($op -and $op -ne $PID -and (Get-Process -Id $op -ErrorAction SilentlyContinue) -and ((Get-Date) - (Get-Item $busy).LastWriteTime).TotalMinutes -lt 3) { $script:NoAutoRetry = $true; Step '另一条消息正在发，这条等它发完再发' $false; Finish $false '另一条正在发' } }
+if (Test-Path $busy) { $op = 0; try { $op = [int](Get-Content -Encoding UTF8 $busy -Raw) } catch {}; if ($op -and $op -ne $PID -and (Get-Process -Id $op -ErrorAction SilentlyContinue) -and ((Get-Date) - (Get-Item $busy).LastWriteTime).TotalMinutes -lt 3) { $script:NoAutoRetry = $true; Step '另一条消息正在发，这条等它发完再发' $false; Finish $false '另一条正在发' } }
 # 2) 这一条之前已经发出去了（这次的或挪开的上一次结果是「已发出」）→ 绝不再发一次
-$prevOk = $false; foreach ($rfPrev in (Join-Path $script:ActDir "$Id.result.json"), (Join-Path $script:ActDir "$Id.result.prev.json")) { if (Test-Path $rfPrev) { try { if (((Unprotect (Get-Content $rfPrev -Raw)) | ConvertFrom-Json).ok -eq $true) { $prevOk = $true } } catch {} } }
+$prevOk = $false; foreach ($rfPrev in (Join-Path $script:ActDir "$Id.result.json"), (Join-Path $script:ActDir "$Id.result.prev.json")) { if (Test-Path $rfPrev) { try { if (((Unprotect (Get-Content -Encoding UTF8 $rfPrev -Raw)) | ConvertFrom-Json).ok -eq $true) { $prevOk = $true } } catch {} } }
 if ($prevOk) { $a.status = 'sent'; Set-ActionField $a 'phase' 'verified'; Save-Action $a; Step '这条之前已经发出去了，没有再发一次' $true; Finish $true '已发出' }
 # 3) 同一条 2 分钟里已经试了 3 次 → 先停下，等你点重试
 if ((Get-ActionAttemptCount $Id) -ge 3) { Step '这条两分钟里已试过三次，请稍后点重试' $false; Finish $false '尝试太多' }

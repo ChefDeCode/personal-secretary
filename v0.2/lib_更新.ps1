@@ -8,7 +8,7 @@
 # 安装由单独的更新器（更新器.ps1）在秘书退出后做：先备份当前文件，再覆盖，启动新版本，60 秒内没起来就从备份恢复并启动旧版本
 if (-not $script:UpdRoot) { $script:UpdRoot = $PSScriptRoot }   # 秘书程序所在的文件夹（v0.2）
 $script:UpdContext = 'secretary-client-release-v1'
-function Get-ClientVersion { $f = Join-Path $script:UpdRoot 'VERSION'; if (Test-Path $f) { (Get-Content $f -Raw).Trim() } else { '0.2.0' } }
+function Get-ClientVersion { $f = Join-Path $script:UpdRoot 'VERSION'; if (Test-Path $f) { (Get-Content -Encoding UTF8 $f -Raw).Trim() } else { '0.2.0' } }
 function Get-ReleasePin { if ((Read-Config).server.store_test_key -and $script:ReleasePins.test) { return $script:ReleasePins.test }; $script:ReleasePins.prod }
 function Compare-Version([string]$a, [string]$b) { $x = [version]($a -replace '[^\d.]', ''); $y = [version]($b -replace '[^\d.]', ''); $x.CompareTo($y) }
 # 服务器的回答（还没下载）：返回 @{ ok; code; reason }

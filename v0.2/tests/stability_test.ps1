@@ -57,10 +57,10 @@ $again = @(1..5 | ForEach-Object { Update-WxEmptyCheck $empty }); Check 'not rep
 $lf = "$T\v2\errors.log"; $old = (Get-Date).AddDays(-40).ToString('s'); $new = (Get-Date).ToString('s'); [IO.File]::WriteAllLines($lf, [string[]]@("$old [x] old", "$new [x] new", "no date line"))
 $big = "$T\v2\send_trace.jsonl"; [IO.File]::WriteAllLines($big, [string[]](1..30000 | ForEach-Object { '{"ts":"' + $new + '","id":"a","msg":"' + ('x' * 80) + '"}' }))
 [IO.File]::WriteAllText("$T\v2\chat.jsonl", ('{"ts":"' + $old + '"}'))
-$n = Limit-Logs; $after = Get-Content $lf
+$n = Limit-Logs; $after = Get-Content -Encoding UTF8 $lf
 Check "old log lines (over 30 days) removed, recent kept ($n lines trimmed)" ($after -notcontains "$old [x] old" -and $after -contains "$new [x] new" -and $after -contains 'no date line')
-Check "a log over 2 MB is cut back to 2 MB, newest kept ($([int]((Get-Item $big).Length / 1KB)) KB)" ((Get-Item $big).Length -le 2MB -and (Get-Content $big -Tail 1) -match $new)
-Check 'chat history is never touched' ((Get-Content "$T\v2\chat.jsonl" -Raw) -match $old)
+Check "a log over 2 MB is cut back to 2 MB, newest kept ($([int]((Get-Item $big).Length / 1KB)) KB)" ((Get-Item $big).Length -le 2MB -and (Get-Content -Encoding UTF8 $big -Tail 1) -match $new)
+Check 'chat history is never touched' ((Get-Content -Encoding UTF8 "$T\v2\chat.jsonl" -Raw) -match $old)
 # f) 健康状况
 [IO.File]::WriteAllLines("$T\root\data\messages.jsonl", [string[]]@(('{"ts":"' + $new + '"}'), ('{"ts":"' + $new + '"}'), ('{"ts":"' + $old + '"}')))
 [IO.File]::WriteAllLines($big, [string[]]@(('{"ts":"' + $new + '","kind":"fg","ok":true,"msg":"已发出"}'), ('{"ts":"' + $new + '","kind":"fg","ok":false,"msg":"用户输入"}'), ('{"ts":"' + $old + '","kind":"fg","ok":false,"msg":"x"}')))

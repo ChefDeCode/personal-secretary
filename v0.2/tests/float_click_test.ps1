@@ -21,13 +21,13 @@ public static class RM {
 function Assert($c, $l) { $script:tot++; if ($c) { $script:ok++ }; "  [{0}] {1}" -f $(if ($c) { 'PASS' } else { 'FAIL' }), $l }; $script:ok = 0; $script:tot = 0
 $p0 = New-Object RM+P; [void][RM]::GetCursorPos([ref]$p0)
 # 测试数据：3 张虚构的提醒卡（不含任何真实内容），保留原来的状态以便恢复
-$stF = "$d\reminders_state.json"; $orig = Get-Content $stF -Raw
+$stF = "$d\reminders_state.json"; $orig = Get-Content -Encoding UTF8 $stF -Raw
 $s = $orig | ConvertFrom-Json; $cards = @(1..3 | ForEach-Object { [pscustomobject]@{ id = "test|$_"; item = "test-item-$_"; text = "测试提醒 $_"; ts = (Get-Date).ToString('s'); important = $false; parts = @() } })
 $cards += [pscustomobject]@{ id = 'brief|test'; item = 'brief'; text = '测试简报'; ts = (Get-Date).ToString('s'); important = $false; parts = @() }; $s.active = @(@($s.active) + $cards); [IO.File]::WriteAllText($stF, ($s | ConvertTo-Json -Depth 6 -Compress))
 New-Item -ItemType File -Force "$d\float_test_on" | Out-Null; Remove-Item "$d\float_rects.json" -ErrorAction SilentlyContinue
 function Rects { Start-Sleep -Milliseconds 700; (Get-Content "$d\float_rects.json" -Raw -Encoding UTF8 | ConvertFrom-Json) }
 function ClickEl($rects, $pred) { $e = @($rects.items | Where-Object $pred)[0]; if (-not $e) { throw [TestAbort]::new('安全中止：要点的按钮没找到') }; $h = MiniH; $Q = New-Object FH+R; [void][FH]::GetWindowRect($h, [ref]$Q); Invoke-TestClick ([int]($Q.L + $e.x * $rects.dpr)) ([int]($Q.T + $e.y * $rects.dpr)); $true }
-function State { Get-Content $stF -Raw | ConvertFrom-Json }
+function State { Get-Content -Encoding UTF8 $stF -Raw | ConvertFrom-Json }
 try {
   # 路径 1：真实鼠标点屏幕边的线（命中窗口在边缘线进程里，是秘书自己的窗口）
   $ep = (Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -match '边缘线\.ps1' } | Select-Object -First 1).ProcessId
@@ -79,7 +79,7 @@ try {
   if (-not ([FH]::GetWindowLong((MiniH), -20) -band 0x20)) { [void]$ev.Set(); Start-Sleep -Milliseconds 700 }   # 测完一定关上浮窗
   [void][RM]::SetCursorPos($p0.X, $p0.Y)   # 鼠标放回原处
   Remove-Item "$d\float_test_on", "$d\float_rects.json" -ErrorAction SilentlyContinue
-  $s = Get-Content $stF -Raw | ConvertFrom-Json; $s.active = @(@($s.active) | Where-Object { $_.id -notlike 'test|*' -and $_.id -ne 'brief|test' }); foreach ($k in 'snooze', 'muted', 'fired') { foreach ($n in @($s.$k.PSObject.Properties.Name)) { if ($n -like 'test*') { $s.$k.PSObject.Properties.Remove($n) } } }; [IO.File]::WriteAllText($stF, ($s | ConvertTo-Json -Depth 6 -Compress))
+  $s = Get-Content -Encoding UTF8 $stF -Raw | ConvertFrom-Json; $s.active = @(@($s.active) | Where-Object { $_.id -notlike 'test|*' -and $_.id -ne 'brief|test' }); foreach ($k in 'snooze', 'muted', 'fired') { foreach ($n in @($s.$k.PSObject.Properties.Name)) { if ($n -like 'test*') { $s.$k.PSObject.Properties.Remove($n) } } }; [IO.File]::WriteAllText($stF, ($s | ConvertTo-Json -Depth 6 -Compress))
   $ev.Dispose()
 }
 "RESULT: $script:ok / $script:tot passed"

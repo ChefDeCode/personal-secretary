@@ -46,7 +46,7 @@ function Save-Memory($m, [string]$why) {
   $m.hist = @(@($m.hist) | Where-Object { $_ }) + @([pscustomobject]@{ ts = (Get-Date).ToString('s'); why = $why; text = $m.text }) | Select-Object -Last 10
   Add-MemLine 'memory.jsonl' $m; $m
 }
-function Get-MemState { $f = MemPath 'memory_state.json'; if (Test-Path $f) { try { return (Get-Content $f -Raw | ConvertFrom-Json) } catch {} }; [pscustomobject]@{ msgOff = 0; chatOff = 0; lastRun = ''; lastActivity = ''; day = ''; calls = 0; usd = 0.0; inTok = 0; outTok = 0; totalUsd = 0.0 } }
+function Get-MemState { $f = MemPath 'memory_state.json'; if (Test-Path $f) { try { return (Get-Content -Encoding UTF8 $f -Raw | ConvertFrom-Json) } catch {} }; [pscustomobject]@{ msgOff = 0; chatOff = 0; lastRun = ''; lastActivity = ''; day = ''; calls = 0; usd = 0.0; inTok = 0; outTok = 0; totalUsd = 0.0 } }
 function Save-MemState($s) { [IO.File]::WriteAllText((MemPath 'memory_state.json'), ($s | ConvertTo-Json -Compress)) }
 
 # —— 新材料：消息库和对话档案里，上次读到之后新增的完整行 ——

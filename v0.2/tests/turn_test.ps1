@@ -45,7 +45,7 @@ foreach ($mode in 'local', 'account') {
 "— 用户原话：你发一条测试消息给微信的文件传输助手 —"
 function Get-AIMode { 'local' }; Remove-Item "$T\chat*.jsonl" -ErrorAction SilentlyContinue; ${function:Start-Claude} = $script:RealStartClaude
 $r = Run-Turn '你发一条测试消息给微信的文件传输助手'
-$card = @($r.cards)[0]; $raw = (Get-Content $script:ChatFile | ForEach-Object { Unprotect $_ }) -join "`n"
+$card = @($r.cards)[0]; $raw = (Get-Content -Encoding UTF8 $script:ChatFile | ForEach-Object { Unprotect $_ }) -join "`n"
 Assert ($card -and $card.card.who -eq '文件传输助手' -and $card.card.status -eq 'open' -and $raw -notmatch '"steps":\{') "the exact sentence → OPEN confirm card to 文件传输助手 (not sent); steps stored as lists ($($r.ms) ms)""— 出错时 —"
 function Get-AIMode { 'local' }; Remove-Item "$T\chat*.jsonl" -ErrorAction SilentlyContinue
 function Start-Claude($body) { throw 'Claude 调用失败：HTTP 503' }   # 模拟 AI 连不上

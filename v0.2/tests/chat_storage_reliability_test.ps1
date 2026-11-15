@@ -69,7 +69,7 @@ try{
   $recovered=@(Get-ChatItems);$history=@(Read-Archive)
   Check 'restart_recovers_archive_only_write_once' ($recovered.Count -eq 1 -and $history.Count -eq 1 -and $recovered[0].text -eq 'synthetic')
   [void](Get-ChatItems);[void](Get-ChatItems)
-  Check 'recovery_is_idempotent' (@(Read-Archive).Count -eq 1 -and @(Get-Content -LiteralPath $script:ChatFile).Count -eq 1)
+  Check 'recovery_is_idempotent' (@(Read-Archive).Count -eq 1 -and @(Get-Content -Encoding UTF8 -LiteralPath $script:ChatFile).Count -eq 1)
   Select-Store 'partial';$script:FaultPath=$script:ChatArchive
   function Write-ChatStorageAppendAt([string]$Path,[long]$Offset,[string]$Text){if($Path -eq $script:FaultPath){throw 'synthetic_crash'};& $script:OriginalAppend $Path $Offset $Text}
   try{[void](Add-ChatItem @{role='me';text='synthetic'})}catch{}

@@ -56,7 +56,7 @@ function Wait-Turn { $sw = [Diagnostics.Stopwatch]::StartNew(); while ($script:T
 } finally { if (-not $srv.HasExited) { $srv.Kill() } }
 if ($DeepSeekKeyFile -and (Test-Path $DeepSeekKeyFile)) {
   "— DeepSeek（真实，用量很小）—"
-  $k = (Get-Content $DeepSeekKeyFile -Raw).Trim(); [void](Set-ProviderKey 'deepseek' $k); Remove-Variable k
+  $k = (Get-Content -Encoding UTF8 $DeepSeekKeyFile -Raw).Trim(); [void](Set-ProviderKey 'deepseek' $k); Remove-Variable k
   $c = Get-AiCfg; $c.provider = 'deepseek'; Save-AiCfg $c
   $tk = Test-ProviderKey 'deepseek'; Assert $tk.ok "DeepSeek 测试连接: $($tk.text)"
 }

@@ -107,7 +107,7 @@ On-Choose $lc[0].id 1 ''; Assert (($script:RuleSet -join ',') -eq 'self_remind=t
 # 14) 帮我盯着：确认卡 → 点好开始盯 → 值守报来有动静 → 出一张只告诉你的卡 → 不再盯
 $wc = Add-ChatItem @{ role = 'ai'; card = @{ kind = 'watch'; status = 'open'; what = '有人提到报价'; chat = '测试群'; days = 3; untilText = 'x'; opts = @('好，帮我盯着', '不用') } }; On-Choose $wc.id 1 ''
 $wc = Get-ChatItems | Where-Object id -eq $wc.id; $wid = [string]$wc.card.watchId; Assert ($wc.card.status -eq 'scheduled' -and @(Get-Watches -Active).Count -eq 1) 'watch: click 好 → starts watching (stored encrypted)'
-Assert (-not ((Get-Content (Get-WatchPath) -Raw) -match '报价')) 'watch list on disk does not contain the text in the clear'
+Assert (-not ((Get-Content -Encoding UTF8 (Get-WatchPath) -Raw) -match '报价')) 'watch list on disk does not contain the text in the clear'
 $act = @(Get-Activity) | Where-Object { $_.item -eq $wc.id }; Assert ($act.state -eq '盯着' -and $act.canStop) "watch shows in 在办的事 as 盯着 with a stop button ($($act.next))"
 $wast = [Management.Automation.Language.Parser]::ParseFile("$(Split-Path $v2 -Parent)\12_值守.ps1", [ref]$null, [ref]$null); $Root = Split-Path $T -Parent | Join-Path -ChildPath 'wtest_root'; New-Item -ItemType Directory -Force "$Root\v0.2\data" | Out-Null; Copy-Item (Get-WatchPath) "$Root\v0.2\data\watches.json"
 foreach ($fn in $wast.FindAll({ param($a) $a -is [Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -eq 'Get-WatchPrompt' }, $true)) { . ([scriptblock]::Create($fn.Extent.Text)) }

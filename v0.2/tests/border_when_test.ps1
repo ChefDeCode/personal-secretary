@@ -26,7 +26,7 @@ try {
   $app = Start-Process "$PSScriptRoot\仿微信.exe" -ArgumentList $logF, '目标会话5', '-4000', '200', 5, 'normal' -PassThru; Start-Sleep 2
   $script:MH = [WinTools]::LargestVisibleWindow([uint32[]]@($app.Id)); [void][TA3]::SetWindowPos($script:MH, [IntPtr]::Zero, 200, 200, 0, 0, 0x15)
   $flag = Join-Path $env:TEMP 'send_now_border.flag'; Remove-Item $flag -ErrorAction SilentlyContinue
-  $job = Start-Job -ScriptBlock { param($p, $b) Start-Sleep -Milliseconds 1500; $w = (Test-Path $b) -and ([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() -lt [long]((Get-Content $b -Raw | ConvertFrom-Json).litUntil)); Start-Sleep -Milliseconds 1500; [IO.File]::WriteAllText($p, '1'); $w } -ArgumentList $flag, $tmpB
+  $job = Start-Job -ScriptBlock { param($p, $b) Start-Sleep -Milliseconds 1500; $w = (Test-Path $b) -and ([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() -lt [long]((Get-Content -Encoding UTF8 $b -Raw | ConvertFrom-Json).litUntil)); Start-Sleep -Milliseconds 1500; [IO.File]::WriteAllText($p, '1'); $w } -ArgumentList $flag, $tmpB
   $script:during = $null
   $o = @{ proc = '仿微信'; findMain = { param($ids) $script:MH }; summon = { param($hh) [void][FgSend]::ShowWindow($script:MH, 5) }; trayHide = { param($hh) [void][FgSend]::ShowWindow($script:MH, 0) }; pill = $null; same = { param($x, $y) ($x -replace '\s', '') -eq ($y -replace '\s', '') }
           border = $tmpB; idleMs = 600000; maxWaitSec = 30; nowFlag = $flag; afterFront = { $script:during = Test-Lit $tmpB } }

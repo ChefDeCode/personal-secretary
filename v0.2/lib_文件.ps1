@@ -123,7 +123,7 @@ function Add-FileTopic([string]$id, [string]$topic) {
 }
 function Remove-FileTopic([string]$id, [string]$topic) { $idx = Get-FileIndex; $f = $idx[$id]; if ($f) { $f.topics = @(@($f.topics) | Where-Object { $_.text -ne $topic }); Save-FileIndex $idx } }
 # —— 老实的统计：第一次给的对不对（用户没改就点了发送）、问了几次、选了「都不是」几次 ——
-function Get-FileStats { if (Test-Path $script:FileStatsFile) { try { return (Get-Content $script:FileStatsFile -Raw | ConvertFrom-Json) } catch {} }; [pscustomobject]@{ offered = 0; accepted = 0; changed = 0; asked = 0; picked = 0; none = 0 } }
+function Get-FileStats { if (Test-Path $script:FileStatsFile) { try { return (Get-Content -Encoding UTF8 $script:FileStatsFile -Raw | ConvertFrom-Json) } catch {} }; [pscustomobject]@{ offered = 0; accepted = 0; changed = 0; asked = 0; picked = 0; none = 0 } }
 function Add-FileStat([string]$k) { $s = Get-FileStats; $s | Add-Member $k ([int]$s.$k + 1) -Force; [IO.File]::WriteAllText($script:FileStatsFile, ($s | ConvertTo-Json -Compress)) }
 function Get-FilePage {
   $idx = Get-FileIndex

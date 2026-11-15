@@ -31,7 +31,7 @@ Receive-HaikuShadow { param($x) 'ENC:' + [Convert]::ToBase64String([Text.Encodin
 $sh = @(Q | Where-Object ev -eq 'shadow')[0]
 Check "shadow record: matched $($sh.matched) / Sonnet-only $($sh.sonnet_only) / Haiku-only $($sh.haiku_only); Haiku `$$($sh.haiku_cost), Sonnet `$$($sh.sonnet_cost)" ($sh.matched -eq 1 -and $sh.sonnet_only -eq 1 -and $sh.haiku_only -eq 1 -and [Math]::Abs($sh.haiku_cost - 0.002) -lt 1e-6 -and [Math]::Abs($sh.sonnet_cost - 0.035) -lt 1e-6)
 Check 'the chat is stored only as a short hash' ($sh.chat.Length -eq 12 -and $sh.chat -ne 'chat-a')
-$tx = @(Get-Content "$T\shadow_texts.jsonl"); Check "the two unmatched items are kept, encrypted ($($tx.Count))" ($tx.Count -eq 2 -and -not ($tx -join '').Contains('明天带书'))
+$tx = @(Get-Content -Encoding UTF8 "$T\shadow_texts.jsonl"); Check "the two unmatched items are kept, encrypted ($($tx.Count))" ($tx.Count -eq 2 -and -not ($tx -join '').Contains('明天带书'))
 Check "today's shadow spend is tracked (`$$(Get-ShadowSpent))" ([Math]::Abs((Get-ShadowSpent) - 0.002) -lt 1e-6)
 Add-ShadowSpent 0.30; Check 'over $0.30 today -> no more shadow calls today' ((Start-HaikuShadow '{}' @() 'c' $null 'k') -eq 'cap')
 # 5) 每天汇总：前一天一行；再调一次不重复
@@ -51,7 +51,7 @@ Check "one counts-only line per missed day ($($d.Count) lines)" ($d.Count -eq 2)
 $ln = @($d | Where-Object { $_.StartsWith($y.ToString('yyyy-MM-dd')) })[0]
 Check 'yesterday: 1 card, 1 outcome 好的, 1 auto-cleared, 12 speaker lines with 2 unknown, 1 visit, 1 note' ($ln -match '出卡 1' -and $ln -match '好的=1' -and $ln -match '自动收掉（回过了）1' -and $ln -match '判断不了 2' -and $ln -match '点进未读 1（成功 1' -and $ln -match '漏了=1')
 Check "a card left alone for 24 hours is counted ($([regex]::Match($ln, '没人管（前一天的卡）\d+').Value))" ($ln -match '没人管（前一天的卡）1')
-$n0 = (Get-Content "$T\quality_daily.txt").Count; [void](Write-QualityDaily); Check 'calling it again the same day adds nothing' ((Get-Content "$T\quality_daily.txt").Count -eq $n0)
+$n0 = (Get-Content -Encoding UTF8 "$T\quality_daily.txt").Count; [void](Write-QualityDaily); Check 'calling it again the same day adds nothing' ((Get-Content -Encoding UTF8 "$T\quality_daily.txt").Count -eq $n0)
 # 6) 资源占用一行（秘书在跑的话能看到它的几个程序）
 function Get-SecretaryProcs { @{} }; function Get-CimInstance { @() }
 $r = Write-ResourceSample @{ ghost_reads = 3 }; Check "resource line written (processes seen: $(@($r.procs.Keys) -join ', '); power $($r.power))" ((Test-Path "$T\resources.jsonl") -and $r.ghost_reads -eq 3 -and $r.power)

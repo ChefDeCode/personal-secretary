@@ -14,7 +14,7 @@ if ($Inner) {
 }
 Remove-Item $out -ErrorAction SilentlyContinue
 $p = Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath, '-Inner' -PassThru -WindowStyle Hidden; $p.WaitForExit(); Start-Sleep 5
-$lines = Get-Content $out; $lines
+$lines = Get-Content -Encoding UTF8 $out; $lines
 $ctlId = [int](($lines | Where-Object { $_ -like 'control pid:*' }) -replace '\D', '')
 $sec = @(Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -match 'v0.2\\秘书\.ps1' })
 "control child killed with the job: $(-not (Get-Process -Id $ctlId -ErrorAction SilentlyContinue))"

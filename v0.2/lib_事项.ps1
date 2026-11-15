@@ -40,9 +40,9 @@ function Get-TaskCompletionOverrides {
 function Get-TrackedTodos([switch]$IncludeClosed) {
   $by = [ordered]@{}; $done = @{};$kept=@{}
   if (Get-Command Get-DoneSet -ErrorAction SilentlyContinue) { $done = Get-DoneSet }
-  else { $legacyDone=Join-Path $script:V2Data 'done.json';if(Test-Path -LiteralPath $legacyDone){try{foreach($id in @((Get-Content -LiteralPath $legacyDone -Raw|ConvertFrom-Json))){$done[[string]$id]=$true}}catch{}} }
+  else { $legacyDone=Join-Path $script:V2Data 'done.json';if(Test-Path -LiteralPath $legacyDone){try{foreach($id in @((Get-Content -Encoding UTF8 -LiteralPath $legacyDone -Raw|ConvertFrom-Json))){$done[[string]$id]=$true}}catch{}} }
   $autoFile=Join-Path $script:V2Data 'auto_replied.json'
-  if(Test-Path -LiteralPath $autoFile){try{(Get-Content -LiteralPath $autoFile -Raw|ConvertFrom-Json).PSObject.Properties|ForEach-Object {if($_.Value -eq 'kept'){$kept[$_.Name]=$true}}}catch{}}
+  if(Test-Path -LiteralPath $autoFile){try{(Get-Content -Encoding UTF8 -LiteralPath $autoFile -Raw|ConvertFrom-Json).PSObject.Properties|ForEach-Object {if($_.Value -eq 'kept'){$kept[$_.Name]=$true}}}catch{}}
   foreach ($t in Read-Jsonl 'todos.jsonl') {
     $id = Get-TodoId $t; if (-not $id) { continue }
     $base = try { [datetime]$t.原文时间 } catch { [datetime]$t.ts }; if ($base -eq [datetime]::MinValue) { $base = [datetime]$t.ts }

@@ -13,7 +13,7 @@ function Test-Healthy([datetime]$since) {
   $sf = Join-Path $Target 'data\run_state.json'; $sw = [Diagnostics.Stopwatch]::StartNew()
   while ($sw.Elapsed.TotalSeconds -lt $HealthSeconds) {
     Start-Sleep -Milliseconds 500
-    try { $rs = Get-Content $sf -Raw -ErrorAction Stop | ConvertFrom-Json; if (-not $rs.clean -and [datetime]$rs.started -ge $since.AddSeconds(-1)) {
+    try { $rs = Get-Content -Encoding UTF8 $sf -Raw -ErrorAction Stop | ConvertFrom-Json; if (-not $rs.clean -and [datetime]$rs.started -ge $since.AddSeconds(-1)) {
         Start-Sleep -Seconds 15; return [bool](Get-Process -Id ([int]$rs.pid) -ErrorAction SilentlyContinue) } } catch {}
   }
   $false
@@ -36,7 +36,7 @@ try {
   if (Test-Healthy $t0) { Log 'health' 'ok'; Remove-Item $Stage -Recurse -Force -ErrorAction SilentlyContinue; exit 0 }
   # 4) 起不来：结束新版本，从备份恢复，启动旧版本
   Log 'health' 'failed → rolling back'
-  try { $rs = Get-Content (Join-Path $Target 'data\run_state.json') -Raw | ConvertFrom-Json; if ([datetime]$rs.started -ge $t0.AddSeconds(-1)) { Stop-Process -Id ([int]$rs.pid) -Force -ErrorAction SilentlyContinue } } catch {}
+  try { $rs = Get-Content -Encoding UTF8 (Join-Path $Target 'data\run_state.json') -Raw | ConvertFrom-Json; if ([datetime]$rs.started -ge $t0.AddSeconds(-1)) { Stop-Process -Id ([int]$rs.pid) -Force -ErrorAction SilentlyContinue } } catch {}
   foreach ($f in $files) { $b = Join-Path $bk $f; if (Test-Path $b) { Copy-Item $b (Join-Path $Target $f) -Force } }
   foreach ($f in $added) { Remove-Item (Join-Path $Target $f) -Force -ErrorAction SilentlyContinue }
   $t1 = Get-Date; [void](Start-App); Log 'rollback' $(if (Test-Healthy $t1) { 'ok, old version running' } else { 'restored files; old version did not report healthy' })

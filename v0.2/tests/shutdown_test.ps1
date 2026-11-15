@@ -11,7 +11,7 @@ if (-not ('ExitLog' -as [type])) { Add-Type -Path (Join-Path $v2 'ExitLog.cs') -
 $wvDll = Join-Path $root 'lib\webview2\Microsoft.Web.WebView2.Core.dll'; if (Test-Path $wvDll) { try { Add-Type -Path $wvDll } catch {} }
 $T = $script:TestDataRoot; $script:V2Data = "$T\v0.2data"
 [ExitLog]::LogPath = "$T\exit_log.jsonl"; [ExitLog]::StatePath = "$T\run_state.json"; [ExitLog]::Install()
-function Kinds { if (Test-Path ([ExitLog]::LogPath)) { @(Get-Content ([ExitLog]::LogPath) | ForEach-Object { ($_ | ConvertFrom-Json).kind }) } else { @() } }
+function Kinds { if (Test-Path ([ExitLog]::LogPath)) { @(Get-Content -Encoding UTF8 ([ExitLog]::LogPath) | ForEach-Object { ($_ | ConvertFrom-Json).kind }) } else { @() } }
 $src = [IO.File]::ReadAllText("$v2\秘书.ps1"); $ast = [Management.Automation.Language.Parser]::ParseInput($src, [ref]$null, [ref]$null)
 foreach ($fn in $ast.FindAll({ param($a) $a -is [Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -in 'Request-WvRestart', 'Show-TrayMenu', 'Set-PageVisibility', 'Test-SuspendTask' }, $true)) { . ([scriptblock]::Create($fn.Extent.Text)) }
 function Handler([string]$who) { $c = @($ast.FindAll({ param($a) $a -is [Management.Automation.Language.CommandExpressionAst] -or $a -is [Management.Automation.Language.InvokeMemberExpressionAst] }, $true) | Where-Object { $_ -is [Management.Automation.Language.InvokeMemberExpressionAst] -and $_.Expression.Extent.Text -eq $who -and $_.Member.Extent.Text -eq 'add_FormClosing' })[0]; [scriptblock]::Create($c.Arguments[0].ScriptBlock.EndBlock.Extent.Text) }
@@ -23,7 +23,7 @@ $mini = Handler '$mini'; $script:quitting = $false
 $e = Ev 'UserClosing'; & $mini $null $e; Check 'mini window: the × button still only hides it' ($e.Cancel -and $script:hidden -eq 1)
 $e = Ev 'WindowsShutDown'; & $mini $null $e
 Check "mini window does not block Windows shutdown, exit reason logged ($(@(Kinds) -join ','))" (-not $e.Cancel -and [ExitLog]::Ending -and (Kinds) -contains 'system-shutdown')
-$st = Get-Content ([ExitLog]::StatePath) -Raw | ConvertFrom-Json
+$st = Get-Content -Encoding UTF8 ([ExitLog]::StatePath) -Raw | ConvertFrom-Json
 Check "run state says 系统关机 and clean ($($st.how))" ($st.how -eq '系统关机' -and $st.clean)
 [ExitLog]::MarkEnding('again'); Check 'the shutdown is logged only once' (@(Kinds | Where-Object { $_ -eq 'system-shutdown' }).Count -eq 1)
 # 2) 主窗口：关机时不拦、停后台

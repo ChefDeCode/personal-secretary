@@ -27,7 +27,7 @@ function Get-PanelData {
                 time = ([datetime]$_.ts).ToString('HH:mm'); shown = Unprotect $_.shown } }); [array]::Reverse($recent)
   $stats = $null; $sf = Join-Path $script:DataDir 'stats.json'; if (Test-Path $sf) { try { $stats = Get-Content $sf -Raw -Encoding UTF8 | ConvertFrom-Json } catch {} }
   $pidFile = Join-Path $script:DataDir 'pid'
-  $watching = (Test-Path $pidFile) -and [bool](Get-Process -Id ([int](Get-Content $pidFile)) -ErrorAction SilentlyContinue)
+  $watching = (Test-Path $pidFile) -and [bool](Get-Process -Id ([int](Get-Content -Encoding UTF8 $pidFile)) -ErrorAction SilentlyContinue)
   $hint = ''; $hf = Join-Path $script:DataDir 'hint.txt'; if (Test-Path $hf) { $hint = (Get-Content $hf -Raw -Encoding UTF8).Trim() }
   [ordered]@{
     type = 'data'; name = Get-SecretaryName; updated = (Get-Date).ToString('HH:mm:ss'); watching = $watching; hint = $hint

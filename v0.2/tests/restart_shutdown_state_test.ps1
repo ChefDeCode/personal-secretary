@@ -7,7 +7,7 @@ $restart = Join-Path $v2 'tools\重启秘书.ps1'
 $ra = [Management.Automation.Language.Parser]::ParseFile($restart, [ref]$null, [ref]$null)
 foreach ($fn in $ra.FindAll({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] }, $true)) { . ([scriptblock]::Create($fn.Extent.Text)) }
 $tmp = Join-Path $env:TEMP ('secretary_restart_state_' + [guid]::NewGuid().ToString('n').Substring(0, 6)); [void][IO.Directory]::CreateDirectory($tmp)
-function State([string]$json) { $f = Join-Path $tmp 'run_state.json'; [IO.File]::WriteAllText($f, $json, (New-Object Text.UTF8Encoding $false)); Get-Content -LiteralPath $f -Raw | ConvertFrom-Json }
+function State([string]$json) { $f = Join-Path $tmp 'run_state.json'; [IO.File]::WriteAllText($f, $json, (New-Object Text.UTF8Encoding $false)); Get-Content -Encoding UTF8 -LiteralPath $f -Raw | ConvertFrom-Json }
 $root = 'C:\Synthetic\Secretary\v0.2'
 function Plan($st, [bool]$startOnly = $true) { Get-SecretaryRestartPlan @() $st $root $false $startOnly 99 }
 try {

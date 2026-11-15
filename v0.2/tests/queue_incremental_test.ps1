@@ -13,7 +13,7 @@ function Msg([int]$i) { ([ordered]@{ ts = (Get-Date).AddMinutes(-5000 + $i).ToSt
 function Pending { @(Get-PendingQueueMessages).Count }
 function IndexLines { @([IO.File]::ReadAllLines("$T\data\extract_queue\journal_ids.txt") | Where-Object { $_ }).Count }
 function Restart { $script:JournalIdSet = $null; $script:JournalIdxBytes = 0L; $script:QueueSynced = $false; $script:QueueJournalStamp = ''; Initialize-ExtractQueue "$T\data" "$T\v2" }
-function Rescans { if (Test-Path "$T\data\extract_queue\rescans.jsonl") { @(Get-Content "$T\data\extract_queue\rescans.jsonl" | ForEach-Object { $_ | ConvertFrom-Json }) } else { @() } }
+function Rescans { if (Test-Path "$T\data\extract_queue\rescans.jsonl") { @(Get-Content -Encoding UTF8 "$T\data\extract_queue\rescans.jsonl" | ForEach-Object { $_ | ConvertFrom-Json }) } else { @() } }
 Initialize-ExtractQueue "$T\data" "$T\v2"
 # 1) 空存档
 Check "empty archive: nothing pending, no rescan logged ($(Pending) pending, $(@(Rescans).Count) rescans)" ((Pending) -eq 0 -and @(Rescans).Count -eq 0)

@@ -41,12 +41,12 @@ $lease = Enter-SendLease
 if (-not $lease) { Write-Output 'restart=sending'; exit 2 }
 try {
   $stateFile = Join-Path $v2 'data\run_state.json'
-  $state = $null; if (Test-Path -LiteralPath $stateFile) { try { $state = Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json } catch { Write-Output 'restart=state_unreadable'; exit 3 } }
+  $state = $null; if (Test-Path -LiteralPath $stateFile) { try { $state = Get-Content -Encoding UTF8 -LiteralPath $stateFile -Raw | ConvertFrom-Json } catch { Write-Output 'restart=state_unreadable'; exit 3 } }
   $processes = @(Get-CimInstance Win32_Process -ErrorAction Stop)
   $plan = Get-SecretaryRestartPlan $processes $state $v2 (Test-Path -LiteralPath (Join-Path $v2 'data\send_busy.flag')) ([bool]$StartOnly) $PID
   if (-not $plan.allowed) { Write-Output ('restart=' + $plan.reason); exit 3 }
   # Recheck clean exit immediately before stopping; a user quit wins over this request.
-  if (Test-Path -LiteralPath $stateFile) { $current = Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json; if (Test-UserQuitState $current) { Write-Output 'restart=user_closed'; exit 3 } }
+  if (Test-Path -LiteralPath $stateFile) { $current = Get-Content -Encoding UTF8 -LiteralPath $stateFile -Raw | ConvertFrom-Json; if (Test-UserQuitState $current) { Write-Output 'restart=user_closed'; exit 3 } }
   foreach ($procId in $plan.pids) {
     # Revalidate command line before terminating, so a reused PID cannot target another program.
     $currentProcesses = @(Get-CimInstance Win32_Process -Filter "ProcessId=$procId" -ErrorAction SilentlyContinue)
@@ -54,7 +54,7 @@ try {
     if ($fresh.pids -contains $procId) { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue }
   }
   if ($plan.pids.Count) { Start-Sleep -Milliseconds 500 }
-  if (Test-Path -LiteralPath $stateFile) { $current = Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json; if (Test-UserQuitState $current) { Write-Output 'restart=user_closed'; exit 3 } }
+  if (Test-Path -LiteralPath $stateFile) { $current = Get-Content -Encoding UTF8 -LiteralPath $stateFile -Raw | ConvertFrom-Json; if (Test-UserQuitState $current) { Write-Output 'restart=user_closed'; exit 3 } }
   Start-Process explorer.exe -WindowStyle Hidden -ArgumentList ('"' + $exe + '"')
   Write-Output 'restart=launched'
 } finally { Exit-SendLease $lease }

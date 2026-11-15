@@ -81,7 +81,7 @@ try{
   $s=Get-SummaryData;$s.stable='UPDATED_AFTER_CRASH';Save-SyntheticSummary $s
   [void](New-CompactionWork);$s=Get-SummaryData
   Check 'replay_keeps_later_summary_update' ($s.stable -eq 'UPDATED_AFTER_CRASH' -and @($s.segments).Count -eq 1)
-  Check 'transaction_payload_remains_encrypted' ((Get-Content -LiteralPath (Get-CompactionTxnPath $work.id) -Raw) -notmatch 'SYNTHETIC_RECOVER')
+  Check 'transaction_payload_remains_encrypted' ((Get-Content -Encoding UTF8 -LiteralPath (Get-CompactionTxnPath $work.id) -Raw) -notmatch 'SYNTHETIC_RECOVER')
 }finally{
   $resolved=[IO.Path]::GetFullPath($testRoot);$prefix=[IO.Path]::GetFullPath($tempRoot).TrimEnd('\')+'\secretary_compaction_'
   if($resolved.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase)){Remove-Item -LiteralPath $resolved -Recurse -Force -ErrorAction SilentlyContinue}

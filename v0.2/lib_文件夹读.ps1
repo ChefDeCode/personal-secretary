@@ -22,7 +22,7 @@ function Get-PathKey([string]$p) { [BitConverter]::ToString([Security.Cryptograp
 # 新建 / 改过的文件（最新的在前，最多 $max 个）；第一次只记下现有的，返回空
 function Get-FolderChanges([string]$stateFile, [int]$max = 3) {
   $files = @(Get-FolderFiles); $st = @{}; $first = -not (Test-Path $stateFile)
-  if (-not $first) { try { (Get-Content $stateFile -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $st[$_.Name] = [long]$_.Value } } catch { $first = $true } }
+  if (-not $first) { try { (Get-Content -Encoding UTF8 $stateFile -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $st[$_.Name] = [long]$_.Value } } catch { $first = $true } }
   $chg = New-Object System.Collections.Generic.List[IO.FileInfo]
   foreach ($f in $files) { $k = Get-PathKey $f.FullName; $tk = $f.LastWriteTimeUtc.Ticks; if (-not $first -and $st[$k] -ne $tk) { $chg.Add($f) }; if ($first) { $st[$k] = $tk } }
   $pick = @($chg | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First $max)

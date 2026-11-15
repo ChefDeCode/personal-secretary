@@ -17,6 +17,6 @@ $older = @(Get-OlderChatItems)
 Check "older originals come back ($($older.Count) of 34)" ($older.Count -eq 34)
 Check 'in time order, none of the recent 16 repeated' (($older[0].text -eq '测试消息 0') -and -not ($older | Where-Object { $keep.id -contains $_.id }))
 Check 'an edited old message comes back as its latest version' ((($older | Where-Object id -eq $old3.id).text) -eq '测试消息 3（改过第二次）')
-Check 'archive still encrypted at rest' (-not ((Get-Content $script:ChatArchive -Raw) -match '测试消息'))
+Check 'archive still encrypted at rest' (-not ((Get-Content -Encoding UTF8 $script:ChatArchive -Raw) -match '测试消息'))
 Remove-Item $T -Recurse -Force -ErrorAction SilentlyContinue
 "older_chat_test: $pass pass, $fail fail"

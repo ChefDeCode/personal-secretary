@@ -120,7 +120,7 @@ try{
   Add-Message later '搞定了' $yesterday '微信' 'SYNTHETIC' '' '' 11;[void](Get-TaskReplyTransitions $now)
   Check 'later_sequence_processed_despite_same_second' ((Get-Today $now).done)
   $atomic=Join-Path $script:V2Data 'atomic.json';Write-FileAtomic $atomic '{"value":1}';Write-FileAtomic $atomic '{"value":2}'
-  Check 'atomic_replacement_complete' ((Get-Content -LiteralPath $atomic -Raw|ConvertFrom-Json).value -eq 2 -and @(Get-ChildItem -LiteralPath $script:V2Data -Filter '*.tmp').Count -eq 0)
+  Check 'atomic_replacement_complete' ((Get-Content -Encoding UTF8 -LiteralPath $atomic -Raw|ConvertFrom-Json).value -eq 2 -and @(Get-ChildItem -LiteralPath $script:V2Data -Filter '*.tmp').Count -eq 0)
 }finally{
   $resolved=[IO.Path]::GetFullPath($testRoot);$prefix=[IO.Path]::GetFullPath($tempRoot).TrimEnd('\')+'\secretary_task_reliability_'
   if($resolved.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase)){Remove-Item -LiteralPath $resolved -Recurse -Force -ErrorAction SilentlyContinue}

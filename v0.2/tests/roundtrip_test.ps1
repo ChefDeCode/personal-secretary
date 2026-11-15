@@ -14,7 +14,7 @@ foreach ($n in 0, 1, 2) {
   # 和 Finish-Turn 里一样的写法：$(...) 会把一个元素的数组拆开
   $it = Add-ChatItem @{ role = 'ai'; text = 't'; steps = $(if ($true) { $steps } else { @() }); card = @{ kind = 'send'; opts = @('发送', '先不发'); result = @() } }
   $back = Get-ChatItems | Where-Object id -eq $it.id
-  $raw = (Unprotect (Get-Content $script:ChatFile | Select-Object -Last 1))
+  $raw = (Unprotect (Get-Content -Encoding UTF8 $script:ChatFile | Select-Object -Last 1))
   Assert ((IsList $back.steps) -and @($back.steps).Count -eq $n -and $raw -match '"steps":\[') "chat item with $n step(s): stored and read back as a list"
   $p = New-PersonRecord; $p.aliases = @(1..$n | Where-Object { $n } | ForEach-Object { [pscustomobject]@{ text = "称呼$_"; source = 'user_confirmed' } }); $p.chats = @([pscustomobject]@{ app = '微信'; title = "人$n" })
   Save-People @($p); $q = @(Get-People)[0]

@@ -28,6 +28,13 @@ jobs:
           if ($tag -notmatch '^v\d+\.\d+\.\d+$') { throw "bad version tag: $tag" }
           "TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
+      - name: Check that v0.2\VERSION matches the tag
+        shell: powershell
+        run: |
+          $want = $env:TAG.Substring(1); $have = (Get-Content -Encoding UTF8 v0.2\VERSION -Raw).Trim()
+          if ($have -ne $want) { throw "v0.2\VERSION says $have but the tag is $env:TAG; bump v0.2\VERSION and the SecretaryVersion marker first" }
+          "VERSION $have matches $env:TAG"
+
       # Windows PowerShell 5.1 reads a .ps1 without BOM in the system code page, which garbles Chinese text and can break parsing
       - name: Parse-check every .ps1 with Windows PowerShell 5.1
         shell: powershell

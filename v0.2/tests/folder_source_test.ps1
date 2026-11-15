@@ -24,6 +24,6 @@ $g = Get-FolderText ($r1.pick | Where-Object Name -eq '新通知.txt'); Check "t
 $d = Get-FolderText ($r1.pick | Where-Object Name -eq '合同.docx'); Check 'Word text read' (($d.lines -join '') -match '签回')
 $s = Get-FolderText ($r1.pick | Where-Object Name -eq 'notes.txt'); Check 'file whose text looks like a password is skipped entirely' ($s.skip -eq 'secret' -and -not @($s.lines).Count)
 $r2 = Get-FolderChanges $state 10; Check 'nothing new -> nothing picked' (@($r2.pick).Count -eq 0)
-Check 'state file stores fingerprints, not file names' (-not ((Get-Content $state -Raw) -match '通知|合同|notes'))
+Check 'state file stores fingerprints, not file names' (-not ((Get-Content -Encoding UTF8 $state -Raw) -match '通知|合同|notes'))
 Remove-Item $T -Recurse -Force -ErrorAction SilentlyContinue
 "folder_source_test: $pass pass, $fail fail"

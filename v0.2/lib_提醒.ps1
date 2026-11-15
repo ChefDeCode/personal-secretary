@@ -85,7 +85,7 @@ function Get-Upcoming([datetime]$now = (Get-Date)) {
 }
 
 # —— 秘书建议：每天整理一次，或者「接下来」变了再整理（每天最多 4 次）；建议是数据，用户点「好」才变成提醒 ——
-function Get-Plan { $f = RemPath 'plan.json'; if (Test-Path $f) { try { return ((MemU (Get-Content $f -Raw)) | ConvertFrom-Json) } catch {} }; [pscustomobject]@{ date = ''; hash = ''; calls = 0; days = [pscustomobject]@{}; dismissed = @() } }
+function Get-Plan { $f = RemPath 'plan.json'; if (Test-Path $f) { try { return ((MemU (Get-Content -Encoding UTF8 $f -Raw)) | ConvertFrom-Json) } catch {} }; [pscustomobject]@{ date = ''; hash = ''; calls = 0; days = [pscustomobject]@{}; dismissed = @() } }
 function Save-Plan($p) { [IO.File]::WriteAllText((RemPath 'plan.json'), (MemP ($p | ConvertTo-Json -Depth 8 -Compress))) }
 function Get-PlanHash($days) { $s = ($days | ForEach-Object { $_.date + ':' + (($_.items | ForEach-Object { $_.key }) -join ',') }) -join '|'; [BitConverter]::ToString([Security.Cryptography.MD5]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($s))).Replace('-', '').Substring(0, 12) }
 function Test-PlanDue([datetime]$now = (Get-Date)) {
@@ -125,7 +125,7 @@ function Set-TipAnswer([string]$id, [bool]$yes) {
 
 # —— 提醒的状态 ——
 function Get-RemState {
-  $f = RemPath 'reminders_state.json'; $s = $null; if (Test-Path $f) { try { $s = Get-Content $f -Raw | ConvertFrom-Json } catch {} }
+  $f = RemPath 'reminders_state.json'; $s = $null; if (Test-Path $f) { try { $s = Get-Content -Encoding UTF8 $f -Raw | ConvertFrom-Json } catch {} }
   if (-not $s) { $s = [pscustomobject]@{} }
   foreach ($k in 'fired', 'snooze', 'muted') { if (-not $s.$k) { $s | Add-Member $k ([pscustomobject]@{}) -Force } }   # 旧格式 / 缺字段的状态文件：补上，不报错
   foreach ($k in 'hour', 'active') { if ($null -eq $s.$k) { $s | Add-Member $k @() -Force } }

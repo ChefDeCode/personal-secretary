@@ -44,6 +44,6 @@ try {
     Check "[$state, self-activating] its queued self-activation after we hid it is caught ($([Ghost2]::Repops - $rep0)x, max 3 tries so we never fight it), and your foreground is always given back ($([GS]::GetForegroundWindow() -eq $fg0)); window back $(if ($back) { 'yes' } else { 'no (this test window keeps re-showing itself)' })" ((([Ghost2]::Repops - $rep0) -ge 1) -and [GS]::GetForegroundWindow() -eq $fg0)
     if ($s.ok) { $s.bmp.Dispose() }
   }
-  $log = @(Get-Content "$T\ghost_reads.jsonl" | ForEach-Object { $_ | ConvertFrom-Json }); Check "each read logged with visible ms, painted, foreground change, state ($($log.Count) lines)" ($log.Count -ge 12 -and $null -ne $log[0].visible_ms -and $null -ne $log[0].painted)
+  $log = @(Get-Content -Encoding UTF8 "$T\ghost_reads.jsonl" | ForEach-Object { $_ | ConvertFrom-Json }); Check "each read logged with visible ms, painted, foreground change, state ($($log.Count) lines)" ($log.Count -ge 12 -and $null -ne $log[0].visible_ms -and $null -ne $log[0].painted)
 } finally { if ([Ghost2]::Active) { [Ghost2]::Hide() }; foreach ($a in $apps) { try { if (-not $a.HasExited) { $a.Kill() } } catch {} }; Get-Process 仿微信 -ErrorAction SilentlyContinue | Stop-Process -Force; Remove-Item $T -Recurse -Force -ErrorAction SilentlyContinue }
 "ghost_snap_test: $pass pass, $fail fail"
