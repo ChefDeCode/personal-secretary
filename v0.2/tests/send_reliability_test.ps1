@@ -75,7 +75,7 @@ try {
     $af = [Management.Automation.Language.Parser]::ParseFile((Join-Path $v2 'lib_发文件.ps1'),[ref]$null,[ref]$null)
     foreach($fn in $af.FindAll({param($n)$n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -in 'Test-FileNameShown','Invoke-FileSend'},$true)){. ([scriptblock]::Create($fn.Extent.Text))}
     function Set-ClipFile($x){$script:clipWrites++;'synthetic-clipboard'}
-    function Restore-Clip($x){$script:clipRestores++}
+    function Restore-FileSendClip($x){$script:clipRestores++}
     $path=Join-Path $root 'synthetic.txt';[IO.File]::WriteAllText($path,'synthetic')
     function New-Driver {
       @{settleMs=0;summon={$true};title={'synthetic'};isForeground={$true};focusInput={};paste={};dialog={@{present=$false}};inputHasFile={$true};clearInput={};pressEnter={$script:pressed++;$script:sentFile=$true};lastMineHasFile={param($n)$script:sentFile};restore={$script:restored++}}
@@ -103,6 +103,14 @@ try {
     Check 'same old outgoing bubble is not fresh evidence' (-not(Test-NewSentText $after $after 'new' 'synthetic' $same))
     Check 'empty or unreadable screenshot is not success' (-not(Test-NewSentText $before $null 'new' 'synthetic' $same))
     Check 'other chat cannot satisfy send verification' (-not(Test-NewSentText $before $after 'new' 'other' $same))
+    # 2026-11-15：认字把全角标点认歪了也算对上；字不一样、或者只是老气泡，都不算
+    $sent='【秘书测试】明天3点开会，OK？';$empty=@{会话='synthetic';消息=@(@{发送方='对方';文本='你好'})};$ocr=@{会话='synthetic';消息=@(@{发送方='对方';文本='你好'},@{发送方='我';文本='（秘书测试〕明天3点开会，OK?'})}
+    Check 'OCR-misread full-width punctuation still counts as the new bubble' (Test-NewSentText $empty $ocr $sent 'synthetic' $same)
+    $wrong=@{会话='synthetic';消息=@(@{发送方='对方';文本='你好'},@{发送方='我';文本='（秘书测试〕明天4点开会，OK?'})}
+    Check 'a different character is still a mismatch' (-not(Test-NewSentText $empty $wrong $sent 'synthetic' $same))
+    Check 'the same bubble seen again is not fresh evidence even with OCR noise' (-not(Test-NewSentText $ocr $ocr $sent 'synthetic' $same))
+    $emo=@{会话='synthetic';消息=@(@{发送方='对方';文本='你好'},@{发送方='我';文本='好的'})}
+    Check 'emoji the OCR cannot see: accepted only when a new bubble appeared' ((Test-NewSentText $empty $emo ('好的'+[char]::ConvertFromUtf32(0x1F44D)) 'synthetic' $same) -and -not(Test-NewSentText $emo $emo ('好的'+[char]::ConvertFromUtf32(0x1F44D)) 'synthetic' $same))
     # Actual main functions, persisted synthetic cards, and a fake launcher.
     $ma=[Management.Automation.Language.Parser]::ParseFile((Join-Path $v2 '秘书.ps1'),[ref]$null,[ref]$null)
     $names=@('Apply-SendResultToCard','Invoke-SendResolution','Invoke-SendRetry','Start-Send','Repair-SendingCards','Close-StuckScheduled','Poll-Sends')

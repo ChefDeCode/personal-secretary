@@ -30,8 +30,11 @@ function Test-FileNameShown([string]$shown, [string]$name) {
   $s.Contains($base.Substring(0, $k)) -and $k -ge [Math]::Min(4, $base.Length)
 }
 # 剪贴板：先存下原来的内容，用完还回去（尽力而为）
-function Set-ClipFile([string]$path) { $old = $null; try { $old = [Windows.Forms.Clipboard]::GetDataObject() } catch {}; $sc = New-Object System.Collections.Specialized.StringCollection; [void]$sc.Add($path); [Windows.Forms.Clipboard]::SetFileDropList($sc); $old }
-function Restore-Clip($old) { try { if ($old) { [Windows.Forms.Clipboard]::SetDataObject($old, $true) } else { [Windows.Forms.Clipboard]::Clear() } } catch {} }
+# 2026-11-15 测试机上测出：以前存的是 GetDataObject() 拿到的对象，剪贴板一换它跟着变，放回去的是空的，你原来复制的字就没了。现在先把文字 / 图片 / 文件列表复制一份再换；
+# 函数名也和 lib_前台发送.ps1 的 Restore-Clip 撞了（发送.ps1 两个都加载，后加载的会盖掉前面的），所以改了名
+function Save-FileSendClip { $s = @{ kind = 'empty' }; try { if ([Windows.Forms.Clipboard]::ContainsFileDropList()) { $s.kind = 'files'; $s.files = [Windows.Forms.Clipboard]::GetFileDropList() } elseif ([Windows.Forms.Clipboard]::ContainsImage()) { $s.kind = 'image'; $s.image = [Windows.Forms.Clipboard]::GetImage() } elseif ([Windows.Forms.Clipboard]::ContainsText()) { $s.kind = 'text'; $s.text = [Windows.Forms.Clipboard]::GetText() } elseif (@([Windows.Forms.Clipboard]::GetDataObject().GetFormats()).Count) { $s.kind = 'other' } } catch { $s.kind = 'other' }; $s }
+function Set-ClipFile([string]$path) { $old = Save-FileSendClip; $sc = New-Object System.Collections.Specialized.StringCollection; [void]$sc.Add($path); [Windows.Forms.Clipboard]::SetFileDropList($sc); $old }
+function Restore-FileSendClip($old) { if (-not $old) { return }; for ($i = 0; $i -lt 5; $i++) { try { switch ($old.kind) { 'text' { [Windows.Forms.Clipboard]::SetText($old.text) } 'image' { [Windows.Forms.Clipboard]::SetImage($old.image) } 'files' { [Windows.Forms.Clipboard]::SetFileDropList($old.files) } default { [Windows.Forms.Clipboard]::Clear() } }; return } catch { Start-Sleep -Milliseconds 50 } } }   # 只认得文字 / 图片 / 文件列表；别的格式放不回去，就清掉我们放的文件
 
 function Invoke-FileSend($act, $drv, [scriptblock]$Same) {
   $steps = New-Object System.Collections.Generic.List[object]; $sw = [Diagnostics.Stopwatch]::StartNew()
@@ -77,7 +80,7 @@ function Invoke-FileSend($act, $drv, [scriptblock]$Same) {
     if ((& $drv.lastMineHasFile $name) -and -not $hadFileBefore) { if ($drv.actionId) { Set-ActionPhase $drv.actionId 'verified' }; & $step '已发出，聊天里能看到这个文件'; return (& $done $true '已发出') }
     & $step '按了发送，但没能在聊天里确认到这个文件，标为「结果不明」，不会重发' $false; return (& $done $null '结果不明')
   } catch { & $step '执行中断，已保留阶段记录' $false; & $done $(if ($sendAttempted) { $null } else { $false }) '执行中断'
-  } finally { if ($clipSaved) { Restore-Clip $clip }; try { [void](& $drv.restore) } catch {} }
+  } finally { if ($clipSaved) { Restore-FileSendClip $clip }; try { [void](& $drv.restore) } catch {} }
 }
 
 # —— 真微信的驱动：叫过来用 Move-WeChatHere；读界面用 Read-WeChat；点击用窗口消息；按键（Ctrl+V / 回车）用 SendInput，且每次都先确认前台是微信 ——

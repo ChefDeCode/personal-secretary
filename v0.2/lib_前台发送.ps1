@@ -117,12 +117,20 @@ function Test-TitleFast($L, [string]$conv, [scriptblock]$same) {
 function Test-BoxBlank([Drawing.Bitmap]$ib) { $n = 0; $s = 0.0; $s2 = 0.0; for ($y = 2; $y -lt $ib.Height - 2; $y += 3) { for ($x = 2; $x -lt $ib.Width - 2; $x += 3) { $p = $ib.GetPixel($x, $y); $l = ($p.R + $p.G + $p.B) / 3.0; $n++; $s += $l; $s2 += $l * $l } }; if (-not $n) { return $true }; $m = $s / $n; ($s2 / $n - $m * $m) -lt 60 }
 # $o = @{ proc; findMain = { param($ids) 主窗口 }; summon = { param($h) 托盘里的窗口叫出来 }; trayHide = { param($h) 放回托盘 }; pill = 提示文件; same = 名字比较 }
 # 返回 @{ ok = $true / $false / $null（可能已发出）; msg; steps; visible_ms; fg_back; clip_ok; draft }
+# 发完以后核对聊天里的新气泡：汉字、字母、数字必须一个不差；标点只看位置和个数（认字软件认不准全角标点和括号，比如【】认成（〕、全角？认成 ?）。
+# 表情认字软件看不见：要发的字里有表情、新气泡正好少了表情的位置、而且「我」的气泡确实多了一条，才算对上
+# （2026-11-15 在 200% 缩放的测试机上测出：字一模一样发出去了，却因为逐字比较标点被标成「结果不明」）
 function Test-NewSentText($before, $after, [string]$text, [string]$conv, [scriptblock]$same) {
   if (-not $before -or -not $after -or -not (& $same ([string]$after.会话) $conv)) { return $false }
   $bm = @($before.消息 | Where-Object { $_.发送方 -eq '我' }); $am = @($after.消息 | Where-Object { $_.发送方 -eq '我' })
-  if (-not $am.Count -or [string]$am[-1].文本 -cne $text) { return $false }
-  $last = if ($bm.Count) { [string]$bm[-1].文本 } else { '' }
-  [bool]($last -cne $text -or $am.Count -gt $bm.Count)
+  if (-not $am.Count) { return $false }
+  $slots = { param([string]$s, [bool]$dropEmoji) $e = [Globalization.StringInfo]::GetTextElementEnumerator($s.Normalize([Text.NormalizationForm]::FormKC)); $sb = New-Object Text.StringBuilder   # 全角字母数字先折成半角
+    while ($e.MoveNext()) { $g = [string]$e.Current; if ($g -match '^\s+$') { continue }; if ($g.Length -eq 1 -and $g -match '^[\p{L}\p{Nd}]$') { [void]$sb.Append($g) } elseif (-not ($dropEmoji -and ($g.Length -ge 2 -or $g -match '^\p{So}$'))) { [void]$sb.Append('?') } }; $sb.ToString() }
+  $want = & $slots $text $false; $got = & $slots ([string]$am[-1].文本) $false
+  $grew = $am.Count -gt $bm.Count
+  if ($got -cne $want -and -not ($grew -and $got -ceq (& $slots $text $true))) { return $false }
+  $last = if ($bm.Count) { & $slots ([string]$bm[-1].文本) $false } else { '' }
+  [bool]($last -cne $got -or $grew)
 }
 function Invoke-FgSend($o, [string]$conv, [string]$text, [switch]$Replace) {
   $cleanup = $null; $realOn = $false
@@ -183,7 +191,11 @@ function Invoke-FgSend($o, [string]$conv, [string]$text, [switch]$Replace) {
     $h = $h2 }
   if ([FgSend]::IsIconic($h)) { [void][FgSend]::ShowWindow($h, 9) }
 
-  $front = [FgSend]::Front($h); $script:FgFrontAt = $vis.ElapsedMilliseconds; Start-Sleep -Milliseconds 150; & $our; $r.t = [ordered]@{}; $r.t.restore = $vis.ElapsedMilliseconds; if ($o.afterFront) { & $o.afterFront }   # 测试用的钩子（真发送不设）
+  $front = [FgSend]::Front($h)
+  # 微信就在桌面上、只是被别的窗口挡着，而前台被别的程序占着（比如「设置」这种窗口）、我们又不是你刚点过的程序时，Windows 不让直接换前台（2026-11-15 测试机上测出）。
+  # 最小化再还原的那条路 Windows 是放行的：先不抢焦点地收起来、再还原，然后再叫一次。原来就在桌面上，收尾时不用再改它的样子
+  if (-not $front -and $was -eq 'here' -and -not [FgSend]::IsIconic($h)) { [void][FgSend]::ShowWindow($h, 7); Start-Sleep -Milliseconds 60; [void][FgSend]::ShowWindow($h, 9); Start-Sleep -Milliseconds 80; $front = [FgSend]::Front($h) -or [FgSend]::GetForegroundWindow() -eq $h; if ($front) { $r.frontVia = 'min-restore' } }
+  $script:FgFrontAt = $vis.ElapsedMilliseconds; Start-Sleep -Milliseconds 150; & $our; $r.t = [ordered]@{}; $r.t.restore = $vis.ElapsedMilliseconds; if ($o.afterFront) { & $o.afterFront }   # 测试用的钩子（真发送不设）
   $r.t.front_ok = $vis.ElapsedMilliseconds   # 5 秒从叫到前面那一刻算起
   if (-not $front -or [FgSend]::GetForegroundWindow() -ne $h) { S '没能把微信叫到最前面，没有发送' $false; return (& $finish $false '微信叫不出来') }
   if ((Get-Command Test-SessionLocked -ErrorAction SilentlyContinue) -and (Test-SessionLocked)) { S '电脑锁着，没有按任何键' $false; return (& $finish $false '电脑锁着') }
