@@ -1,6 +1,11 @@
 跑在你自己 Windows 电脑上的个人秘书：看着微信、邮件和文件夹，整理出「需要你回的」「你答应别人的」「有截止时间的」，到点提醒你。
 
-**这一版（0.2.2）**
+**这一版（0.2.3）：替你发微信更稳**
+- 替你发文件以后，你剪贴板里原来的东西会原样放回去。以前会被清空。
+- 消息一字不差地发出去了，却显示「结果不明」的情况修好了。原因有两个：一是认字时把全角标点和括号认歪；二是你连着发的几条靠得很近，被认成了一个气泡。
+- 微信开在桌面上、只是被别的窗口挡着（比如开着「设置」窗口）时，以前可能叫不到最前面，现在可以了。
+
+**0.2.2**
 - 修好了中文 Windows 上提醒反复弹的问题。系统代码页是 936（GBK）时，秘书读自己的数据文件会读成乱码，提醒记录丢了，同一条提醒就一遍遍再弹。现在读文件一律按 UTF-8。
 - 0.2.1 安装后程序里显示的版本号还是 0.2.0，这一版改对了。
 
@@ -16,5 +21,7 @@
 ---
 
 A personal secretary that runs on your own Windows PC. Per-user install, no admin rights, no autostart. The installer is not code-signed, so SmartScreen will warn: click "More info" → "Run anyway". Verify downloads with `SHA256SUMS`. Requires Windows 10/11 with the WebView2 Runtime and your own AI key (or a signed-in account).
+
+0.2.3 makes sending on your behalf more reliable: after sending a file your clipboard is put back as it was; a message that went out exactly is no longer marked "result unknown" because the read-back misread full-width punctuation or merged consecutive bubbles; and WeChat can be brought to the front when another window covers it.
 
 0.2.2 fixes reminders repeating on Chinese-locale Windows (code page 936): data files are now always read as UTF-8. The in-app version number is correct again (0.2.1 still said 0.2.0).

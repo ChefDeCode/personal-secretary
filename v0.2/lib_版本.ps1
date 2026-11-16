@@ -52,8 +52,8 @@ function Add-SecretaryLogLines {
 }
 
 # 当前版本和这一版改了什么（一句话）。每次改动只改这两行：值守和秘书启动时各在 quality.jsonl 里写一行版本标记，一周的数字能按改动前后分开看
-$script:SecretaryVersion = '0.2.2-reliability.20261115.1'
-$script:SecretaryChange = '中文 Windows（系统代码页 936）下读数据文件一律按 UTF-8：提醒状态不再读坏、提醒不再重复弹；版本号改成 0.2.2'
+$script:SecretaryVersion = '0.2.3-reliability.20261116.1'
+$script:SecretaryChange = '替你发微信更稳：发文件后剪贴板原样放回；发出后核对不再因为认错标点或连发并成一个气泡而显示「结果不明」；微信被别的窗口挡着也能叫到前面；版本号改成 0.2.3'
 function Write-ReliabilityVersionMark {
   param([string]$DataPath, [string]$Component, [string]$Version = $script:SecretaryVersion, [string]$Change = $script:SecretaryChange)
   if (-not $DataPath -or -not $Component) { return $false }
