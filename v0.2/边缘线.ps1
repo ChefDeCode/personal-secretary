@@ -15,7 +15,8 @@ Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 $wvDir = Join-Path $root 'lib\webview2'
 Add-Type -Path (Join-Path $wvDir 'Microsoft.Web.WebView2.Core.dll'); Add-Type -Path (Join-Path $wvDir 'Microsoft.Web.WebView2.WinForms.dll')
 [Microsoft.Web.WebView2.Core.CoreWebView2Environment]::SetLoaderDllFolderPath($wvDir)
-$dataV1 = Join-Path $root 'data'; $dataV2 = Join-Path $v2 'data'; New-Item -ItemType Directory -Force $dataV2 | Out-Null
+# 测试时（SECRETARY_TEST_DATA）跟秘书其他部分一样用测试自己的数据文件夹，不碰你真正的数据
+$dataV1 = if ($env:SECRETARY_TEST_DATA) { Join-Path $env:SECRETARY_TEST_DATA 'data' } else { Join-Path $root 'data' }; $dataV2 = if ($env:SECRETARY_TEST_DATA) { Join-Path $env:SECRETARY_TEST_DATA 'v0.2data' } else { Join-Path $v2 'data' }; New-Item -ItemType Directory -Force $dataV2 | Out-Null
 $stateFile = Join-Path $dataV1 'state.json'; $noticeFile = Join-Path $dataV1 'notice.json'
 $uiFile = Join-Path $dataV2 'ui_state.json'; $posFile = Join-Path $dataV2 'edge_pos.json'
 

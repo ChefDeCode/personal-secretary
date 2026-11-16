@@ -111,6 +111,12 @@ try {
     Check 'the same bubble seen again is not fresh evidence even with OCR noise' (-not(Test-NewSentText $ocr $ocr $sent 'synthetic' $same))
     $emo=@{会话='synthetic';消息=@(@{发送方='对方';文本='你好'},@{发送方='我';文本='好的'})}
     Check 'emoji the OCR cannot see: accepted only when a new bubble appeared' ((Test-NewSentText $empty $emo ('好的'+[char]::ConvertFromUtf32(0x1F44D)) 'synthetic' $same) -and -not(Test-NewSentText $emo $emo ('好的'+[char]::ConvertFromUtf32(0x1F44D)) 'synthetic' $same))
+    # 2026-11-16：连着发的两条被认字并成一个气泡：上一条后面正好多出这段字也算对上；没多出来、或多出来的字不一样，都不算
+    $one=@{会话='synthetic';消息=@(@{发送方='对方';文本='你好'},@{发送方='我';文本='【秘书测试】第一条'})};$two=@{会话='synthetic';消息=@(@{发送方='对方';文本='你好'},@{发送方='我';文本='（秘书测试〕第一条【秘书测试】第三条OK?'})}
+    Check 'new bubble merged into my previous one by the reader still counts' (Test-NewSentText $one $two '【秘书测试】第三条OK？' 'synthetic' $same)
+    $twoBad=@{会话='synthetic';消息=@(@{发送方='对方';文本='你好'},@{发送方='我';文本='【秘书测试】第一条【秘书测试】第四条OK?'})}
+    Check 'merged bubble with different text is still a mismatch' (-not(Test-NewSentText $one $twoBad '【秘书测试】第三条OK？' 'synthetic' $same))
+    Check 'unchanged previous bubble is not evidence of a merged send' (-not(Test-NewSentText $one $one '【秘书测试】第三条OK？' 'synthetic' $same))
     # Actual main functions, persisted synthetic cards, and a fake launcher.
     $ma=[Management.Automation.Language.Parser]::ParseFile((Join-Path $v2 '秘书.ps1'),[ref]$null,[ref]$null)
     $names=@('Apply-SendResultToCard','Invoke-SendResolution','Invoke-SendRetry','Start-Send','Repair-SendingCards','Close-StuckScheduled','Poll-Sends')

@@ -1,7 +1,7 @@
 ﻿# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 ChefDeCode
 # 微信外的边框什么时候亮：秘书在想 / 值守在读（含透明还原读）→ 不亮，只有线在呼吸；借用前台发送 → 只在借用那一段亮。
-# A、B：真的边缘线在跑，看它会不会拉起边框；C：仿微信窗口里走一遍发送（会抢前台），看边框标记什么时候亮。结果写到 data\border_when_test.txt
+# A、B：测试自己起一条真的边缘线（用测试的数据文件夹，屏幕边上会多一条线十几秒），看它会不会拉起边框；C：仿微信窗口里走一遍发送（会抢前台），看边框标记什么时候亮。结果写到 data\border_when_test.txt
 $ErrorActionPreference = 'Stop'
 $v2 = Split-Path $PSScriptRoot -Parent
 . (Join-Path $PSScriptRoot 'lib_test_data.ps1'); $script:TestDataRoot = Use-TestDataFolder 'border_when_test'   # 测试用自己的临时数据文件夹，不碰真的数据
@@ -9,8 +9,14 @@ $v2 = Split-Path $PSScriptRoot -Parent
 Add-Type 'using System; using System.Runtime.InteropServices; public static class TA3 { [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr a, int x, int y, int cx, int cy, uint f); }'
 $out = Join-Path $script:V2Data 'border_when_test.txt'; Remove-Item $out -ErrorAction SilentlyContinue; function W($s) { Add-Content $out $s -Encoding UTF8 }
 $pass = 0; $fail = 0; function Check($n, $ok) { if ($ok) { $script:pass++ } else { $script:fail++ }; W "  [$(if ($ok) { 'PASS' } else { 'FAIL' })] $n" }
-function BorderProcs { @(Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -match '07_AI边框特效' }).Count }
+# 只数这次测试的边框（命令行里带测试数据文件夹），你自己在用的秘书的边框不算
+function BorderProcs { @(Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -match '07_AI边框特效' -and $_.CommandLine.Contains($script:TestDataRoot) }).Count }
 $state = Join-Path $script:DataDir 'state.json'; $bfile = Join-Path $script:DataDir 'border.json'
+# 2026-11-16：测试改用自己的数据文件夹以后，你电脑上的边缘线看不到测试写的标记，A 总是过、B 总是不过。现在测试自己起一条边缘线
+$edge = Start-Process powershell -WindowStyle Hidden -PassThru -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $v2 '边缘线.ps1'), '-OwnerPid', $PID)
+try {
+for ($i = 0; $i -lt 60 -and -not $edge.HasExited -and (Get-Process -Id $edge.Id -ErrorAction SilentlyContinue).MainWindowHandle -eq [IntPtr]::Zero; $i++) { Start-Sleep -Milliseconds 250 }; Start-Sleep 1
+if ($edge.HasExited) { W '  [ENVIRONMENT] the edge line did not start here — A and B skipped' } else {
 # A) 秘书在想 / 值守在读：只写 state.json
 Set-Lit $state 6; $seen = 0; for ($i = 0; $i -lt 10; $i++) { Start-Sleep -Milliseconds 500; $seen = [Math]::Max($seen, (BorderProcs)) }; Set-Lit $state 1
 Check 'thinking / reading (incl. invisible restore) -> edge line only, no border' ($seen -eq 0)
@@ -18,6 +24,7 @@ Check 'thinking / reading (incl. invisible restore) -> edge line only, no border
 Start-Sleep 2; Set-Lit $bfile 3; $up = $false; for ($i = 0; $i -lt 10; $i++) { Start-Sleep -Milliseconds 500; if ((BorderProcs) -gt 0) { $up = $true } }
 $gone = $false; for ($i = 0; $i -lt 20; $i++) { Start-Sleep -Milliseconds 500; if ((BorderProcs) -eq 0) { $gone = $true; break } }
 Check 'send borrow flag -> border shows' $up; Check 'flag expires -> border goes away by itself' $gone
+} } finally { if (-not $edge.HasExited) { Stop-Process -Id $edge.Id -Force -ErrorAction SilentlyContinue }; Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -match '07_AI边框特效' -and $_.CommandLine.Contains($script:TestDataRoot) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } }
 # C) 仿微信里发一次（等 3 秒「立即发」才开始）：等的时候不亮，借用时亮，发完熄
 $tmpB = Join-Path $env:TEMP 'border_when_flag.json'; Remove-Item $tmpB -ErrorAction SilentlyContinue
 $userClip = Save-Clip; $logF = Join-Path $env:TEMP 'fake_wechat_log.txt'; Remove-Item $logF -ErrorAction SilentlyContinue

@@ -127,9 +127,10 @@ function Test-NewSentText($before, $after, [string]$text, [string]$conv, [script
   $slots = { param([string]$s, [bool]$dropEmoji) $e = [Globalization.StringInfo]::GetTextElementEnumerator($s.Normalize([Text.NormalizationForm]::FormKC)); $sb = New-Object Text.StringBuilder   # 全角字母数字先折成半角
     while ($e.MoveNext()) { $g = [string]$e.Current; if ($g -match '^\s+$') { continue }; if ($g.Length -eq 1 -and $g -match '^[\p{L}\p{Nd}]$') { [void]$sb.Append($g) } elseif (-not ($dropEmoji -and ($g.Length -ge 2 -or $g -match '^\p{So}$'))) { [void]$sb.Append('?') } }; $sb.ToString() }
   $want = & $slots $text $false; $got = & $slots ([string]$am[-1].文本) $false
-  $grew = $am.Count -gt $bm.Count
+  $grew = $am.Count -gt $bm.Count; $last = if ($bm.Count) { & $slots ([string]$bm[-1].文本) $false } else { '' }
+  # 你连着发的两条靠得很近时，认字会把新气泡并进上一条「我」的气泡里：上一条后面正好多出了要发的这段字，也算对上（2026-11-16 连发测试测出）
+  if ($last -and -not $grew -and ($got -ceq ($last + $want) -or $got -ceq ($last + (& $slots $text $true)))) { return $true }
   if ($got -cne $want -and -not ($grew -and $got -ceq (& $slots $text $true))) { return $false }
-  $last = if ($bm.Count) { & $slots ([string]$bm[-1].文本) $false } else { '' }
   [bool]($last -cne $got -or $grew)
 }
 function Invoke-FgSend($o, [string]$conv, [string]$text, [switch]$Replace) {
